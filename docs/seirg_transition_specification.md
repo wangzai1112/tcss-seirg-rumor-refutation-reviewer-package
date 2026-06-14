@@ -16,8 +16,10 @@ The baseline coupled SEIR model uses normalized state proportions:
 
 The SEIRG extension adds:
 
-- `g1(t)`: online refutation state.
-- `g2(t)`: offline refutation state.
+- `g1(t)`: online refutation-response state entered by individuals after online corrective information, prompts, fact checking, public clarification, or online rebuttal.
+- `g2(t)`: offline refutation-response state entered by individuals after offline explanation or interpersonal clarification.
+
+`g1(t)` and `g2(t)` are individual compartment proportions. They are not stocks of public-information volume, numbers of official messages, or direct measures of real-world implementation intensity. This interpretation is required for the conservation condition below.
 
 The SEIRG conservation condition is:
 
@@ -87,7 +89,14 @@ RE(Tg) = s(Tg) * [
 ]
 ```
 
-The effective exit terms include baseline exit, direct refutation transition, and the effect of accumulated `G` states. This is a local model indicator. It should not be read as a real-world policy-effect estimate or a prediction of final propagation size.
+The effective exit terms are defined as:
+
+```text
+gamma1_tilde(Tg) = gamma1 + alpha1 + mu1*g1(Tg)
+gamma2_tilde(Tg) = gamma2 + alpha2 + mu2*g2(Tg)
+```
+
+The `alpha` terms apply after the intervention switch is active, and the `mu` terms summarize contact with accumulated refutation-response states at the local state used for the directional indicator. This is a local model indicator. It should not be read as a real-world policy-effect estimate, a full nonlinear stability theorem, or a prediction of final propagation size.
 
 ## Relation to the Reproducibility Package
 
