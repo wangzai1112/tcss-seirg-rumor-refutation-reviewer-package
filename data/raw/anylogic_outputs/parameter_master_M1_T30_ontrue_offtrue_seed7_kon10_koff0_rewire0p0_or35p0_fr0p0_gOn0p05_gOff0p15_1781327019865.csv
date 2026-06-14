@@ -1,0 +1,2 @@
+runId,modelMode,seedId,interventionStartTime,enableOnlineIntervention,enableOfflineIntervention,kOffline,kOnline,pRewire,initialOnlineSeeds,initialOfflineSeeds,onlineRate,offlineRate,onlineGovEffect,offlineGovEffect,latentTime,forgetTime,govForgetTime
+M1_T30_ontrue_offtrue_seed7_kon10_koff0_rewire0p0_or35p0_fr0p0_gOn0p05_gOff0p15_1781327019865,1,7,30.0,true,true,0,10,0.0,20,0,35.0,0.0,0.05,0.15,2.0,5.0,3.0

@@ -1,0 +1,10 @@
+runId,time,S,E,I1,I2,G1,G2,R,interventionStartTime,enableOnlineIntervention,enableOfflineIntervention,kOffline,kOnline,pRewire,initialOnlineSeeds,initialOfflineSeeds,seedId
+T30_onfalse_offfalse_seed1_kon6_koff4_rewire0p1_1781232143821,0.0,1000,0,0,0,0,0,0,30.0,false,false,4,6,0.1,10,10,1
+T30_onfalse_offfalse_seed1_kon6_koff4_rewire0p1_1781232143821,1.0,937,43,10,10,0,0,0,30.0,false,false,4,6,0.1,10,10,1
+T30_onfalse_offfalse_seed1_kon6_koff4_rewire0p1_1781232143821,2.0,935,29,20,15,0,0,1,30.0,false,false,4,6,0.1,10,10,1
+T30_onfalse_offfalse_seed1_kon6_koff4_rewire0p1_1781232143821,3.0,904,39,32,24,0,0,1,30.0,false,false,4,6,0.1,10,10,1
+T30_onfalse_offfalse_seed1_kon6_koff4_rewire0p1_1781232143821,4.0,885,32,53,29,0,0,1,30.0,false,false,4,6,0.1,10,10,1
+T30_onfalse_offfalse_seed1_kon6_koff4_rewire0p1_1781232143821,5.0,847,52,67,33,0,0,1,30.0,false,false,4,6,0.1,10,10,1
+T30_onfalse_offfalse_seed1_kon6_koff4_rewire0p1_1781232143821,6.0,831,39,85,41,0,0,4,30.0,false,false,4,6,0.1,10,10,1
+T30_onfalse_offfalse_seed1_kon6_koff4_rewire0p1_1781232143821,7.0,795,48,104,49,0,0,4,30.0,false,false,4,6,0.1,10,10,1
+T30_onfalse_offfalse_seed1_kon6_koff4_rewire0p1_1781232143821,8.0,771,48,121,54,0,0,6,30.0,false,false,4,6,0.1,10,10,1

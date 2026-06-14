@@ -1,0 +1,12 @@
+﻿parameter,low,high,description,default_or_current_reference
+onlineRate,20.0,50.0,线上传播速率,
+offlineRate,2.0,10.0,线下传播速率,
+onlineGovEffect,0.02,0.12,线上辟谣干预强度,
+offlineGovEffect,0.05,0.35,线下辟谣干预强度,
+latentTime,1.0,5.0,潜伏时间,
+forgetTime,3.0,20.0,传播者退出/遗忘时间,
+govForgetTime,1.5,8.0,辟谣干预状态退出时间,
+pRewire,0.01,0.3,网络重连概率,
+kOnline,4.0,10.0,线上平均接触度,
+kOffline,2.0,8.0,线下平均接触度,
+interventionStartTime,10.0,60.0,干预启动时刻,

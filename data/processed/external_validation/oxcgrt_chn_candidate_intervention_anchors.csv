@@ -1,0 +1,11 @@
+﻿date,anchor_type,value,interpretation
+2020-01-05,H1_public_information_increase,1.0,public-information campaign intensity increased
+2020-01-15,first_H1_public_information_threshold,2.0,candidate public-information intervention start
+2020-01-15,H1_public_information_increase,2.0,public-information campaign intensity increased
+2020-01-22,government_response_index_jump,27.08,government response index increased by at least 10.0
+2020-01-23,government_response_index_jump,37.5,government response index increased by at least 10.0
+2020-01-26,government_response_index_jump,51.56,government response index increased by at least 10.0
+2020-05-10,government_response_index_jump,67.45,government response index increased by at least 10.0
+2020-09-15,government_response_index_jump,70.57,government response index increased by at least 10.0
+2020-10-24,government_response_index_jump,72.92,government response index increased by at least 10.0
+2021-04-05,government_response_index_jump,76.61,government response index increased by at least 10.0

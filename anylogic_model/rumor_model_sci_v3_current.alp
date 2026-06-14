@@ -1,0 +1,3227 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+*************************************************
+	         AnyLogic Project File
+*************************************************
+-->
+<AnyLogicWorkspace WorkspaceVersion="1.9" AnyLogicVersion="8.9.8.202602271012" AlpVersion="8.9.7">
+<Model>
+	<Id>1654094819743</Id>
+	<Name><![CDATA[谣言传播模型_SCI补实验版]]></Name>
+	<EngineVersion>6</EngineVersion>
+	<JavaPackageName><![CDATA[谣言传播模型]]></JavaPackageName>
+	<ModelTimeUnit><![CDATA[Hour]]></ModelTimeUnit>
+	<Folders>
+	</Folders>
+	<ActiveObjectClasses>
+		<!--   =========   Active Object Class   ========  -->
+		<ActiveObjectClass>
+			<Id>1654094819749</Id>
+			<Name><![CDATA[Main]]></Name>
+			<StartupCode><![CDATA[int n = people.size();
+
+// 使用虚拟时间运行，减少批量补实验等待时间。
+getEngine().setRealTimeMode(false);
+
+// 使 seedId 真正控制本次仿真的默认随机数流，支撑多 seed 重复实验的可复现性。
+getEngine().setDefaultRandomGenerator(new java.util.Random(seedId));
+
+// 每次仿真启动时先关闭手动按钮状态；批量实验通过 enableOnline/OfflineIntervention 与 interventionStartTime 控制。
+isOnlineIntervention = false;
+isOfflineIntervention = false;
+
+// 拓扑参数由界面/实验参数控制，便于做结构敏感性与稳健性实验。
+int k_offline = Math.max(0, kOffline);
+if (k_offline % 2 != 0) k_offline += 1;
+int k_online = Math.max(0, kOnline);
+if (k_online % 2 != 0) k_online += 1;
+double p_rewire = Math.max(0.0, Math.min(1.0, pRewire));
+
+// ==========================================
+// 第一阶段：构建线下规则网络 (Regular Ring Lattice)
+// ==========================================
+for (int i = 0; i < n; i++) {
+    Person p = people.get(i);
+    for (int j = 1; j <= k_offline / 2; j++) {
+        int targetIndex = (i + j) % n;
+        Person target = people.get(targetIndex);
+        if (!p.offlineConnections.isConnectedTo(target)) {
+            p.offlineConnections.connectTo(target);
+        }
+    }
+}
+
+// ==========================================
+// 第二阶段：构建线上WS小世界网络 (Watts-Strogatz)
+// ==========================================
+for (int i = 0; i < n; i++) {
+    Person p = people.get(i);
+    for (int j = 1; j <= k_online / 2; j++) {
+        int targetIndex = (i + j) % n;
+        Person target = people.get(targetIndex);
+        if (!p.onlineConnections.isConnectedTo(target)) {
+            p.onlineConnections.connectTo(target);
+        }
+    }
+}
+
+// 执行边重连，拒绝自环与重边。
+for (int i = 0; i < n; i++) {
+    Person p = people.get(i);
+    List<Person> currentOnlineNeighbors = new ArrayList<>(p.onlineConnections.getConnections());
+
+    for (Person neighbor : currentOnlineNeighbors) {
+        if (p.getIndex() < neighbor.getIndex() && randomTrue(p_rewire)) {
+            p.onlineConnections.disconnectFrom(neighbor);
+
+            Person newTarget = people.random();
+            int guard = 0;
+            while ((newTarget == p || p.onlineConnections.isConnectedTo(newTarget)) && guard < n * 2) {
+                newTarget = people.random();
+                guard++;
+            }
+
+            if (newTarget != p && !p.onlineConnections.isConnectedTo(newTarget)) {
+                p.onlineConnections.connectTo(newTarget);
+            } else {
+                p.onlineConnections.connectTo(neighbor);
+            }
+        }
+    }
+}
+
+// ==========================================
+// 第三阶段：随机抽取初始感染种子，避免固定前20个主体带来的位置偏差
+// ==========================================
+java.util.HashSet<Person> seeded = new java.util.HashSet<Person>();
+int onlineSeeds = Math.min(Math.max(0, initialOnlineSeeds), n);
+
+for (int s = 0; s < onlineSeeds; s++) {
+    Person candidate = people.random();
+    int guard = 0;
+    while (seeded.contains(candidate) && guard < n * 2) {
+        candidate = people.random();
+        guard++;
+    }
+    if (!seeded.contains(candidate)) {
+        seeded.add(candidate);
+        candidate.receive("线上初始感染");
+    }
+}
+
+int offlineSeeds = Math.min(Math.max(0, initialOfflineSeeds), n - seeded.size());
+for (int s = 0; s < offlineSeeds; s++) {
+    Person candidate = people.random();
+    int guard = 0;
+    while (seeded.contains(candidate) && guard < n * 2) {
+        candidate = people.random();
+        guard++;
+    }
+    if (!seeded.contains(candidate)) {
+        seeded.add(candidate);
+        candidate.receive("线下初始感染");
+    }
+}
+
+
+if (enableCsvExport) {
+    final Main self = this;
+    final double finalTimeForCsv = 180.0;
+    final java.io.File outputDir = new java.io.File("/Users/hao/2026/Codex/6月/毕业论文/AnyLogic输出数据");
+    outputDir.mkdirs();
+    final int csvKOffline = k_offline;
+    final int csvKOnline = k_online;
+    final double csvPRewire = p_rewire;
+    final int csvOnlineSeeds = onlineSeeds;
+    final int csvOfflineSeeds = offlineSeeds;
+
+    final String runId = "M" + modelMode
+        + "_T" + Math.round(interventionStartTime)
+        + "_on" + enableOnlineIntervention
+        + "_off" + enableOfflineIntervention
+        + "_seed" + seedId
+        + "_kon" + csvKOnline
+        + "_koff" + csvKOffline
+        + "_rewire" + String.valueOf(csvPRewire).replace('.', 'p')
+        + "_or" + String.valueOf(线上传播速率).replace('.', 'p')
+        + "_fr" + String.valueOf(线下传播速率).replace('.', 'p')
+        + "_gOn" + String.valueOf(线上辟谣影响系数).replace('.', 'p')
+        + "_gOff" + String.valueOf(线下辟谣影响系数).replace('.', 'p')
+        + "_" + System.currentTimeMillis();
+
+    try {
+        final java.io.PrintWriter rawWriter = new java.io.PrintWriter(
+            new java.io.OutputStreamWriter(
+                new java.io.FileOutputStream(new java.io.File(outputDir, "raw_timeseries_" + runId + ".csv")),
+                "UTF-8"
+            )
+        );
+        final java.io.PrintWriter summaryWriter = new java.io.PrintWriter(
+            new java.io.OutputStreamWriter(
+                new java.io.FileOutputStream(new java.io.File(outputDir, "summary_metrics_" + runId + ".csv")),
+                "UTF-8"
+            )
+        );
+        final java.io.PrintWriter parameterWriter = new java.io.PrintWriter(
+            new java.io.OutputStreamWriter(
+                new java.io.FileOutputStream(new java.io.File(outputDir, "parameter_master_" + runId + ".csv")),
+                "UTF-8"
+            )
+        );
+
+        rawWriter.println("runId,time,S,E,I1,I2,G1,G2,R,modelMode,interventionStartTime,enableOnlineIntervention,enableOfflineIntervention,kOffline,kOnline,pRewire,initialOnlineSeeds,initialOfflineSeeds,seedId");
+        summaryWriter.println("runId,modelMode,seedId,interventionStartTime,enableOnlineIntervention,enableOfflineIntervention,kOffline,kOnline,pRewire,initialOnlineSeeds,initialOfflineSeeds,I1Peak,I1PeakTime,I2Peak,I2PeakTime,G1Peak,G2Peak,cumulativeInfectedPersonHours,finalS,finalE,finalI1,finalI2,finalG1,finalG2,finalR");
+        parameterWriter.println("runId,modelMode,seedId,interventionStartTime,enableOnlineIntervention,enableOfflineIntervention,kOffline,kOnline,pRewire,initialOnlineSeeds,initialOfflineSeeds,onlineRate,offlineRate,onlineGovEffect,offlineGovEffect,latentTime,forgetTime,govForgetTime");
+        summaryWriter.flush();
+        parameterWriter.println(runId + "," + modelMode + "," + seedId + "," + interventionStartTime + "," + enableOnlineIntervention + "," + enableOfflineIntervention + "," + csvKOffline + "," + csvKOnline + "," + csvPRewire + "," + csvOnlineSeeds + "," + csvOfflineSeeds + "," + 线上传播速率 + "," + 线下传播速率 + "," + 线上辟谣影响系数 + "," + 线下辟谣影响系数 + "," + 潜伏时间 + "," + 遗忘时间 + "," + 辟谣者遗忘时间);
+        parameterWriter.flush();
+
+        final double[] lastTime = new double[] { self.time() };
+        final double[] i1Peak = new double[] { 0.0 };
+        final double[] i1PeakTime = new double[] { 0.0 };
+        final double[] i2Peak = new double[] { 0.0 };
+        final double[] i2PeakTime = new double[] { 0.0 };
+        final double[] g1Peak = new double[] { 0.0 };
+        final double[] g2Peak = new double[] { 0.0 };
+        final double[] cumulativeInfectedPersonHours = new double[] { 0.0 };
+
+        class CsvRecorder extends com.anylogic.engine.DynamicEvent {
+            CsvRecorder(double dt) {
+                super(self, dt, com.anylogic.engine.TimeUnits.HOUR);
+            }
+
+            @Override
+            public void execute() {
+                double t = self.time();
+                int sCount = self.people.Susceptible();
+                int eCount = self.people.Exposed();
+                int i1Count = self.people.OnlineInfected();
+                int i2Count = self.people.OfflineInfected();
+                int g1Count = self.people.ONOfficeRecovered();
+                int g2Count = self.people.OFFOfficeRecovered();
+                int rCount = self.people.Recovered();
+
+                double dt = Math.max(0.0, t - lastTime[0]);
+                cumulativeInfectedPersonHours[0] += (i1Count + i2Count) * dt;
+                lastTime[0] = t;
+
+                if (i1Count > i1Peak[0]) {
+                    i1Peak[0] = i1Count;
+                    i1PeakTime[0] = t;
+                }
+                if (i2Count > i2Peak[0]) {
+                    i2Peak[0] = i2Count;
+                    i2PeakTime[0] = t;
+                }
+                if (g1Count > g1Peak[0]) g1Peak[0] = g1Count;
+                if (g2Count > g2Peak[0]) g2Peak[0] = g2Count;
+
+                rawWriter.println(runId + "," + t + "," + sCount + "," + eCount + "," + i1Count + "," + i2Count + "," + g1Count + "," + g2Count + "," + rCount + "," + modelMode + "," + interventionStartTime + "," + enableOnlineIntervention + "," + enableOfflineIntervention + "," + csvKOffline + "," + csvKOnline + "," + csvPRewire + "," + csvOnlineSeeds + "," + csvOfflineSeeds + "," + seedId);
+                rawWriter.flush();
+
+                if (t + 1.0e-9 < finalTimeForCsv) {
+                    new CsvRecorder(Math.min(1.0, finalTimeForCsv - t));
+                } else {
+                    summaryWriter.println(runId + "," + modelMode + "," + seedId + "," + interventionStartTime + "," + enableOnlineIntervention + "," + enableOfflineIntervention + "," + csvKOffline + "," + csvKOnline + "," + csvPRewire + "," + csvOnlineSeeds + "," + csvOfflineSeeds + "," + i1Peak[0] + "," + i1PeakTime[0] + "," + i2Peak[0] + "," + i2PeakTime[0] + "," + g1Peak[0] + "," + g2Peak[0] + "," + cumulativeInfectedPersonHours[0] + "," + sCount + "," + eCount + "," + i1Count + "," + i2Count + "," + g1Count + "," + g2Count + "," + rCount);
+                    summaryWriter.flush();
+                    rawWriter.close();
+                    summaryWriter.close();
+                    parameterWriter.close();
+                    traceln("CSV导出完成：" + runId);
+                    finishSimulation();
+                }
+            }
+        }
+
+        new CsvRecorder(0.0);
+        traceln("CSV导出已启动：" + runId);
+    } catch (Exception ex) {
+        traceln("CSV导出初始化失败：" + ex.getMessage());
+    }
+}
+traceln("SCI补实验版：双层网络已生成，kOffline=" + k_offline
+    + ", kOnline=" + k_online
+    + ", pRewire=" + p_rewire
+    + ", onlineSeeds=" + onlineSeeds
+    + ", offlineSeeds=" + offlineSeeds
+    + ", interventionStartTime=" + interventionStartTime
+    + ", modelMode=" + modelMode
+    + ", seedId=" + seedId);]]></StartupCode>
+			<Generic>false</Generic>
+			<GenericParameter>
+				<Id>1654094819747</Id>
+				<Name><![CDATA[1654094819747]]></Name>
+				<GenericParameterValue Class="CodeValue">
+					<Code><![CDATA[T extends Agent]]></Code>
+				</GenericParameterValue>
+				<GenericParameterLabel><![CDATA[泛型参数：]]></GenericParameterLabel>
+			</GenericParameter>
+			<FlowChartsUsage>ENTITY</FlowChartsUsage>
+			<SamplesToKeep>100</SamplesToKeep>
+			<LimitNumberOfArrayElements>false</LimitNumberOfArrayElements>
+			<ElementsLimitValue>100</ElementsLimitValue>
+			<MakeDefaultViewArea>true</MakeDefaultViewArea>
+			<SceneGridColor/>
+			<SceneBackgroundColor>-4144960</SceneBackgroundColor>
+			<SceneSkybox>null</SceneSkybox>
+			<AgentProperties>
+				<EnvironmentDefinesInitialLocation>true</EnvironmentDefinesInitialLocation>
+				<RotateAnimationTowardsMovement>true</RotateAnimationTowardsMovement>
+				<RotateAnimationVertically>false</RotateAnimationVertically>
+				<VelocityCode Class="CodeUnitValue">
+					<Code><![CDATA[10]]></Code>
+					<Unit Class="SpeedUnits"><![CDATA[MPS]]></Unit>
+				</VelocityCode>
+				<PhysicalLength Class="CodeUnitValue">
+					<Code><![CDATA[1]]></Code>
+					<Unit Class="LengthUnits"><![CDATA[METER]]></Unit>
+				</PhysicalLength>
+				<PhysicalWidth Class="CodeUnitValue">
+					<Code><![CDATA[1]]></Code>
+					<Unit Class="LengthUnits"><![CDATA[METER]]></Unit>
+				</PhysicalWidth>
+				<PhysicalHeight Class="CodeUnitValue">
+					<Code><![CDATA[1]]></Code>
+					<Unit Class="LengthUnits"><![CDATA[METER]]></Unit>
+				</PhysicalHeight>
+			</AgentProperties>
+			<EnvironmentProperties>
+					<EnableSteps>false</EnableSteps>
+					<StepDurationCode Class="CodeUnitValue">
+						<Code><![CDATA[1.0]]></Code>
+						<Unit Class="TimeUnits"><![CDATA[SECOND]]></Unit>
+					</StepDurationCode>
+					<SpaceType>CONTINUOUS</SpaceType>
+					<WidthCode><![CDATA[2500]]></WidthCode>
+					<HeightCode><![CDATA[1000]]></HeightCode>
+					<ZHeightCode><![CDATA[0]]></ZHeightCode>
+					<ColumnsCountCode><![CDATA[100]]></ColumnsCountCode>
+					<RowsCountCode><![CDATA[100]]></RowsCountCode>
+					<NeigborhoodType>MOORE</NeigborhoodType>
+					<LayoutType>RANDOM</LayoutType>
+					<NetworkType>USER_DEF</NetworkType>
+					<ConnectionsPerAgentCode><![CDATA[2]]></ConnectionsPerAgentCode>
+					<ConnectionsRangeCode><![CDATA[100]]></ConnectionsRangeCode>
+					<NeighborLinkFractionCode><![CDATA[0.95]]></NeighborLinkFractionCode>
+					<MCode><![CDATA[10]]></MCode>
+			</EnvironmentProperties>
+			<DatasetsCreationProperties>
+				<AutoCreate>true</AutoCreate>
+					<Id>1654094799998</Id>
+					<OccurrenceAtTime>true</OccurrenceAtTime>
+					<OccurrenceDate>1654156800000</OccurrenceDate>
+					<OccurrenceTime Class="CodeUnitValue">
+						<Code><![CDATA[0]]></Code>
+						<Unit Class="TimeUnits"><![CDATA[HOUR]]></Unit>
+					</OccurrenceTime>
+					<RecurrenceCode Class="CodeUnitValue">
+						<Code><![CDATA[1]]></Code>
+						<Unit Class="TimeUnits"><![CDATA[HOUR]]></Unit>
+					</RecurrenceCode>
+			</DatasetsCreationProperties>
+			<ScaleRuler>
+				<Id>1654094819745</Id>
+				<Name><![CDATA[scale]]></Name>
+				<X>0</X><Y>-150</Y>
+				<PublicFlag>false</PublicFlag>
+				<PresentationFlag>false</PresentationFlag>
+				<ShowLabel>false</ShowLabel>
+				<DrawMode>SHAPE_DRAW_2D3D</DrawMode>
+				<Length>80</Length>
+				<Rotation>0</Rotation>
+				<ScaleType>BASED_ON_LENGTH</ScaleType>
+				<ModelLength>50</ModelLength>
+				<LengthUnits>METER</LengthUnits>
+				<Scale>10</Scale>
+				<InheritedFromParentAgentType>true</InheritedFromParentAgentType>
+			</ScaleRuler>
+			<CurrentLevel>1654094819748</CurrentLevel>
+			<ConnectionsId>1654094819744</ConnectionsId>
+			<Variables>
+				<Variable Class="PlainVariable">
+					<Id>1767351981904</Id>
+					<Name><![CDATA[isOnlineIntervention]]></Name>
+					<X>540</X><Y>1300</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties SaveInSnapshot="true" Constant="false" AccessType="public" StaticVariable="false">
+						<Type><![CDATA[boolean]]></Type>        
+						<InitialValue Class="CodeValue">
+							<Code><![CDATA[false]]></Code>
+						</InitialValue>
+					</Properties>
+				</Variable>
+				<Variable Class="PlainVariable">
+					<Id>1767363800105</Id>
+					<Name><![CDATA[isOfflineIntervention]]></Name>
+					<X>840</X><Y>1300</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties SaveInSnapshot="true" Constant="false" AccessType="public" StaticVariable="false">
+						<Type><![CDATA[boolean]]></Type>        
+						<InitialValue Class="CodeValue">
+							<Code><![CDATA[false]]></Code>
+						</InitialValue>
+					</Properties>
+				</Variable>
+				<Variable Class="Parameter">
+					<Id>1729307365149</Id>
+					<Name><![CDATA[线上辟谣影响系数]]></Name>
+					<X>540</X><Y>1400</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties SaveInSnapshot="true" ModificatorType="STATIC">
+						<Type><![CDATA[double]]></Type>
+						<UnitType><![CDATA[NONE]]></UnitType>
+						<SdArray>false</SdArray>
+						<DefaultValue Class="CodeValue">
+							<Code><![CDATA[0.05]]></Code>
+						</DefaultValue>
+						<ParameterEditor>
+							<Id>1729307365147</Id>
+							<Label><![CDATA[线上辟谣影响系数]]></Label>
+							<EditorContolType>TEXT_BOX</EditorContolType>
+							<MinSliderValue><![CDATA[0]]></MinSliderValue>
+							<MaxSliderValue><![CDATA[100]]></MaxSliderValue>
+							<DelimeterType>NO_DELIMETER</DelimeterType>
+						</ParameterEditor>
+					</Properties>                 
+				</Variable>
+				<Variable Class="Parameter">
+					<Id>1729307893487</Id>
+					<Name><![CDATA[线下辟谣影响系数]]></Name>
+					<X>540</X><Y>1450</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties SaveInSnapshot="true" ModificatorType="STATIC">
+						<Type><![CDATA[double]]></Type>
+						<UnitType><![CDATA[NONE]]></UnitType>
+						<SdArray>false</SdArray>
+						<DefaultValue Class="CodeValue">
+							<Code><![CDATA[0.15]]></Code>
+						</DefaultValue>
+						<ParameterEditor>
+							<Id>1729307893485</Id>
+							<Label><![CDATA[线下辟谣影响系数]]></Label>
+							<EditorContolType>TEXT_BOX</EditorContolType>
+							<MinSliderValue><![CDATA[0]]></MinSliderValue>
+							<MaxSliderValue><![CDATA[100]]></MaxSliderValue>
+							<DelimeterType>NO_DELIMETER</DelimeterType>
+						</ParameterEditor>
+					</Properties>                 
+				</Variable>
+				<Variable Class="Parameter">
+					<Id>1729403545857</Id>
+					<Name><![CDATA[直接免疫概率]]></Name>
+					<X>540</X><Y>1600</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties SaveInSnapshot="true" ModificatorType="STATIC">
+						<Type><![CDATA[double]]></Type>
+						<UnitType><![CDATA[NONE]]></UnitType>
+						<SdArray>false</SdArray>
+						<DefaultValue Class="CodeValue">
+							<Code><![CDATA[0]]></Code>
+						</DefaultValue>
+						<ParameterEditor>
+							<Id>1729403545855</Id>
+							<EditorContolType>TEXT_BOX</EditorContolType>
+							<MinSliderValue><![CDATA[0]]></MinSliderValue>
+							<MaxSliderValue><![CDATA[100]]></MaxSliderValue>
+							<DelimeterType>NO_DELIMETER</DelimeterType>
+						</ParameterEditor>
+					</Properties>                 
+				</Variable>
+				<Variable Class="Parameter">
+					<Id>1729403545980</Id>
+					<Name><![CDATA[线下传播速率]]></Name>
+					<X>540</X><Y>1550</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties SaveInSnapshot="true" ModificatorType="STATIC">
+						<Type><![CDATA[double]]></Type>
+						<UnitType><![CDATA[NONE]]></UnitType>
+						<SdArray>false</SdArray>
+						<DefaultValue Class="CodeValue">
+							<Code><![CDATA[5]]></Code>
+						</DefaultValue>
+						<ParameterEditor>
+							<Id>1729403545978</Id>
+							<EditorContolType>TEXT_BOX</EditorContolType>
+							<MinSliderValue><![CDATA[0]]></MinSliderValue>
+							<MaxSliderValue><![CDATA[100]]></MaxSliderValue>
+							<DelimeterType>NO_DELIMETER</DelimeterType>
+						</ParameterEditor>
+					</Properties>                 
+				</Variable>
+				<Variable Class="Parameter">
+					<Id>1729403545983</Id>
+					<Name><![CDATA[线上传播速率]]></Name>
+					<X>540</X><Y>1500</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties SaveInSnapshot="true" ModificatorType="STATIC">
+						<Type><![CDATA[double]]></Type>
+						<UnitType><![CDATA[NONE]]></UnitType>
+						<SdArray>false</SdArray>
+						<DefaultValue Class="CodeValue">
+							<Code><![CDATA[35]]></Code>
+						</DefaultValue>
+						<ParameterEditor>
+							<Id>1729403545981</Id>
+							<EditorContolType>TEXT_BOX</EditorContolType>
+							<MinSliderValue><![CDATA[0]]></MinSliderValue>
+							<MaxSliderValue><![CDATA[100]]></MaxSliderValue>
+							<DelimeterType>NO_DELIMETER</DelimeterType>
+						</ParameterEditor>
+					</Properties>                 
+				</Variable>
+				<Variable Class="Parameter">
+					<Id>1729403545986</Id>
+					<Name><![CDATA[免疫时间]]></Name>
+					<X>840</X><Y>1600</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties SaveInSnapshot="true" ModificatorType="STATIC">
+						<Type><![CDATA[double]]></Type>
+						<UnitType><![CDATA[NONE]]></UnitType>
+						<SdArray>false</SdArray>
+						<DefaultValue Class="CodeValue">
+							<Code><![CDATA[7]]></Code>
+						</DefaultValue>
+						<ParameterEditor>
+							<Id>1729403545984</Id>
+							<EditorContolType>TEXT_BOX</EditorContolType>
+							<MinSliderValue><![CDATA[0]]></MinSliderValue>
+							<MaxSliderValue><![CDATA[100]]></MaxSliderValue>
+							<DelimeterType>NO_DELIMETER</DelimeterType>
+						</ParameterEditor>
+					</Properties>                 
+				</Variable>
+				<Variable Class="Parameter">
+					<Id>1729403545989</Id>
+					<Name><![CDATA[线上辟谣概率]]></Name>
+					<X>840</X><Y>1400</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties SaveInSnapshot="true" ModificatorType="STATIC">
+						<Type><![CDATA[double]]></Type>
+						<UnitType><![CDATA[NONE]]></UnitType>
+						<SdArray>false</SdArray>
+						<DefaultValue Class="CodeValue">
+							<Code><![CDATA[0.3]]></Code>
+						</DefaultValue>
+						<ParameterEditor>
+							<Id>1729403545987</Id>
+							<EditorContolType>TEXT_BOX</EditorContolType>
+							<MinSliderValue><![CDATA[0]]></MinSliderValue>
+							<MaxSliderValue><![CDATA[100]]></MaxSliderValue>
+							<DelimeterType>NO_DELIMETER</DelimeterType>
+						</ParameterEditor>
+					</Properties>                 
+				</Variable>
+				<Variable Class="Parameter">
+					<Id>1729403545992</Id>
+					<Name><![CDATA[线下辟谣概率]]></Name>
+					<X>840</X><Y>1450</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties SaveInSnapshot="true" ModificatorType="STATIC">
+						<Type><![CDATA[double]]></Type>
+						<UnitType><![CDATA[NONE]]></UnitType>
+						<SdArray>false</SdArray>
+						<DefaultValue Class="CodeValue">
+							<Code><![CDATA[0.8]]></Code>
+						</DefaultValue>
+						<ParameterEditor>
+							<Id>1729403545990</Id>
+							<EditorContolType>TEXT_BOX</EditorContolType>
+							<MinSliderValue><![CDATA[0]]></MinSliderValue>
+							<MaxSliderValue><![CDATA[100]]></MaxSliderValue>
+							<DelimeterType>NO_DELIMETER</DelimeterType>
+						</ParameterEditor>
+					</Properties>                 
+				</Variable>
+				<Variable Class="Parameter">
+					<Id>1729403545995</Id>
+					<Name><![CDATA[辟谣者遗忘时间]]></Name>
+					<X>840</X><Y>1550</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties SaveInSnapshot="true" ModificatorType="STATIC">
+						<Type><![CDATA[double]]></Type>
+						<UnitType><![CDATA[NONE]]></UnitType>
+						<SdArray>false</SdArray>
+						<DefaultValue Class="CodeValue">
+							<Code><![CDATA[4]]></Code>
+						</DefaultValue>
+						<ParameterEditor>
+							<Id>1729403545993</Id>
+							<EditorContolType>TEXT_BOX</EditorContolType>
+							<MinSliderValue><![CDATA[0]]></MinSliderValue>
+							<MaxSliderValue><![CDATA[100]]></MaxSliderValue>
+							<DelimeterType>NO_DELIMETER</DelimeterType>
+						</ParameterEditor>
+					</Properties>                 
+				</Variable>
+				<Variable Class="Parameter">
+					<Id>1729403545998</Id>
+					<Name><![CDATA[遗忘时间]]></Name>
+					<X>840</X><Y>1500</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties SaveInSnapshot="true" ModificatorType="STATIC">
+						<Type><![CDATA[double]]></Type>
+						<UnitType><![CDATA[NONE]]></UnitType>
+						<SdArray>false</SdArray>
+						<DefaultValue Class="CodeValue">
+							<Code><![CDATA[30]]></Code>
+						</DefaultValue>
+						<ParameterEditor>
+							<Id>1729403545996</Id>
+							<EditorContolType>TEXT_BOX</EditorContolType>
+							<MinSliderValue><![CDATA[0]]></MinSliderValue>
+							<MaxSliderValue><![CDATA[100]]></MaxSliderValue>
+							<DelimeterType>NO_DELIMETER</DelimeterType>
+						</ParameterEditor>
+					</Properties>                 
+				</Variable>
+				<Variable Class="Parameter">
+					<Id>1769990000002</Id>
+					<Name><![CDATA[潜伏时间]]></Name>
+					<X>840</X><Y>1650</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties SaveInSnapshot="true" ModificatorType="STATIC">
+						<Type><![CDATA[double]]></Type>
+						<UnitType><![CDATA[NONE]]></UnitType>
+						<SdArray>false</SdArray>
+						<DefaultValue Class="CodeValue">
+							<Code><![CDATA[2]]></Code>
+						</DefaultValue>
+						<ParameterEditor>
+							<Id>1769990000003</Id>
+							<EditorContolType>TEXT_BOX</EditorContolType>
+							<MinSliderValue><![CDATA[0]]></MinSliderValue>
+							<MaxSliderValue><![CDATA[100]]></MaxSliderValue>
+							<DelimeterType>NO_DELIMETER</DelimeterType>
+						</ParameterEditor>
+					</Properties>                 
+				</Variable>
+				<Variable Class="Parameter">
+					<Id>1880000000001</Id>
+					<Name><![CDATA[interventionStartTime]]></Name>
+					<X>1140</X><Y>1400</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties SaveInSnapshot="true" ModificatorType="STATIC">
+						<Type><![CDATA[double]]></Type>
+						<UnitType><![CDATA[NONE]]></UnitType>
+						<SdArray>false</SdArray>
+						<DefaultValue Class="CodeValue">
+							<Code><![CDATA[60]]></Code>
+						</DefaultValue>
+						<ParameterEditor>
+							<Id>1880000000002</Id>
+							<Label><![CDATA[自动干预启动时间]]></Label>
+							<EditorContolType>TEXT_BOX</EditorContolType>
+							<MinSliderValue><![CDATA[0]]></MinSliderValue>
+							<MaxSliderValue><![CDATA[100]]></MaxSliderValue>
+							<DelimeterType>NO_DELIMETER</DelimeterType>
+						</ParameterEditor>
+					</Properties>                 
+				</Variable>
+				<Variable Class="Parameter">
+					<Id>1880000000003</Id>
+					<Name><![CDATA[enableOnlineIntervention]]></Name>
+					<X>1140</X><Y>1450</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties SaveInSnapshot="true" ModificatorType="STATIC">
+						<Type><![CDATA[boolean]]></Type>
+						<UnitType><![CDATA[NONE]]></UnitType>
+						<SdArray>false</SdArray>
+						<DefaultValue Class="CodeValue">
+							<Code><![CDATA[true]]></Code>
+						</DefaultValue>
+						<ParameterEditor>
+							<Id>1880000000004</Id>
+							<Label><![CDATA[启用线上自动干预]]></Label>
+							<EditorContolType>TEXT_BOX</EditorContolType>
+							<MinSliderValue><![CDATA[0]]></MinSliderValue>
+							<MaxSliderValue><![CDATA[100]]></MaxSliderValue>
+							<DelimeterType>NO_DELIMETER</DelimeterType>
+						</ParameterEditor>
+					</Properties>                 
+				</Variable>
+				<Variable Class="Parameter">
+					<Id>1880000000005</Id>
+					<Name><![CDATA[enableOfflineIntervention]]></Name>
+					<X>1140</X><Y>1500</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties SaveInSnapshot="true" ModificatorType="STATIC">
+						<Type><![CDATA[boolean]]></Type>
+						<UnitType><![CDATA[NONE]]></UnitType>
+						<SdArray>false</SdArray>
+						<DefaultValue Class="CodeValue">
+							<Code><![CDATA[false]]></Code>
+						</DefaultValue>
+						<ParameterEditor>
+							<Id>1880000000006</Id>
+							<Label><![CDATA[启用线下自动干预]]></Label>
+							<EditorContolType>TEXT_BOX</EditorContolType>
+							<MinSliderValue><![CDATA[0]]></MinSliderValue>
+							<MaxSliderValue><![CDATA[100]]></MaxSliderValue>
+							<DelimeterType>NO_DELIMETER</DelimeterType>
+						</ParameterEditor>
+					</Properties>                 
+				</Variable>
+				<Variable Class="Parameter">
+					<Id>1880000000007</Id>
+					<Name><![CDATA[kOffline]]></Name>
+					<X>1140</X><Y>1550</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties SaveInSnapshot="true" ModificatorType="STATIC">
+						<Type><![CDATA[int]]></Type>
+						<UnitType><![CDATA[NONE]]></UnitType>
+						<SdArray>false</SdArray>
+						<DefaultValue Class="CodeValue">
+							<Code><![CDATA[4]]></Code>
+						</DefaultValue>
+						<ParameterEditor>
+							<Id>1880000000008</Id>
+							<Label><![CDATA[线下网络平均度]]></Label>
+							<EditorContolType>TEXT_BOX</EditorContolType>
+							<MinSliderValue><![CDATA[0]]></MinSliderValue>
+							<MaxSliderValue><![CDATA[100]]></MaxSliderValue>
+							<DelimeterType>NO_DELIMETER</DelimeterType>
+						</ParameterEditor>
+					</Properties>                 
+				</Variable>
+				<Variable Class="Parameter">
+					<Id>1880000000009</Id>
+					<Name><![CDATA[kOnline]]></Name>
+					<X>1140</X><Y>1600</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties SaveInSnapshot="true" ModificatorType="STATIC">
+						<Type><![CDATA[int]]></Type>
+						<UnitType><![CDATA[NONE]]></UnitType>
+						<SdArray>false</SdArray>
+						<DefaultValue Class="CodeValue">
+							<Code><![CDATA[6]]></Code>
+						</DefaultValue>
+						<ParameterEditor>
+							<Id>1880000000010</Id>
+							<Label><![CDATA[线上网络初始度]]></Label>
+							<EditorContolType>TEXT_BOX</EditorContolType>
+							<MinSliderValue><![CDATA[0]]></MinSliderValue>
+							<MaxSliderValue><![CDATA[100]]></MaxSliderValue>
+							<DelimeterType>NO_DELIMETER</DelimeterType>
+						</ParameterEditor>
+					</Properties>                 
+				</Variable>
+				<Variable Class="Parameter">
+					<Id>1880000000011</Id>
+					<Name><![CDATA[pRewire]]></Name>
+					<X>1140</X><Y>1650</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties SaveInSnapshot="true" ModificatorType="STATIC">
+						<Type><![CDATA[double]]></Type>
+						<UnitType><![CDATA[NONE]]></UnitType>
+						<SdArray>false</SdArray>
+						<DefaultValue Class="CodeValue">
+							<Code><![CDATA[0.1]]></Code>
+						</DefaultValue>
+						<ParameterEditor>
+							<Id>1880000000012</Id>
+							<Label><![CDATA[线上小世界重连概率]]></Label>
+							<EditorContolType>TEXT_BOX</EditorContolType>
+							<MinSliderValue><![CDATA[0]]></MinSliderValue>
+							<MaxSliderValue><![CDATA[100]]></MaxSliderValue>
+							<DelimeterType>NO_DELIMETER</DelimeterType>
+						</ParameterEditor>
+					</Properties>                 
+				</Variable>
+				<Variable Class="Parameter">
+					<Id>1880000000013</Id>
+					<Name><![CDATA[initialOnlineSeeds]]></Name>
+					<X>1440</X><Y>1400</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties SaveInSnapshot="true" ModificatorType="STATIC">
+						<Type><![CDATA[int]]></Type>
+						<UnitType><![CDATA[NONE]]></UnitType>
+						<SdArray>false</SdArray>
+						<DefaultValue Class="CodeValue">
+							<Code><![CDATA[10]]></Code>
+						</DefaultValue>
+						<ParameterEditor>
+							<Id>1880000000014</Id>
+							<Label><![CDATA[线上初始感染数]]></Label>
+							<EditorContolType>TEXT_BOX</EditorContolType>
+							<MinSliderValue><![CDATA[0]]></MinSliderValue>
+							<MaxSliderValue><![CDATA[100]]></MaxSliderValue>
+							<DelimeterType>NO_DELIMETER</DelimeterType>
+						</ParameterEditor>
+					</Properties>                 
+				</Variable>
+				<Variable Class="Parameter">
+					<Id>1880000000015</Id>
+					<Name><![CDATA[initialOfflineSeeds]]></Name>
+					<X>1440</X><Y>1450</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties SaveInSnapshot="true" ModificatorType="STATIC">
+						<Type><![CDATA[int]]></Type>
+						<UnitType><![CDATA[NONE]]></UnitType>
+						<SdArray>false</SdArray>
+						<DefaultValue Class="CodeValue">
+							<Code><![CDATA[10]]></Code>
+						</DefaultValue>
+						<ParameterEditor>
+							<Id>1880000000016</Id>
+							<Label><![CDATA[线下初始感染数]]></Label>
+							<EditorContolType>TEXT_BOX</EditorContolType>
+							<MinSliderValue><![CDATA[0]]></MinSliderValue>
+							<MaxSliderValue><![CDATA[100]]></MaxSliderValue>
+							<DelimeterType>NO_DELIMETER</DelimeterType>
+						</ParameterEditor>
+					</Properties>                 
+				</Variable>
+				<Variable Class="Parameter">
+					<Id>1880000000017</Id>
+					<Name><![CDATA[enableCsvExport]]></Name>
+					<X>1440</X><Y>1500</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties SaveInSnapshot="true" ModificatorType="STATIC">
+						<Type><![CDATA[boolean]]></Type>
+						<UnitType><![CDATA[NONE]]></UnitType>
+						<SdArray>false</SdArray>
+						<DefaultValue Class="CodeValue">
+							<Code><![CDATA[true]]></Code>
+						</DefaultValue>
+						<ParameterEditor>
+							<Id>1880000000018</Id>
+							<Label><![CDATA[启用CSV导出]]></Label>
+							<EditorContolType>TEXT_BOX</EditorContolType>
+							<MinSliderValue><![CDATA[0]]></MinSliderValue>
+							<MaxSliderValue><![CDATA[100]]></MaxSliderValue>
+							<DelimeterType>NO_DELIMETER</DelimeterType>
+						</ParameterEditor>
+					</Properties>                 
+				</Variable>
+				<Variable Class="Parameter">
+					<Id>1880000000021</Id>
+					<Name><![CDATA[modelMode]]></Name>
+					<X>1440</X><Y>1600</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties SaveInSnapshot="true" ModificatorType="STATIC">
+						<Type><![CDATA[int]]></Type>
+						<UnitType><![CDATA[NONE]]></UnitType>
+						<SdArray>false</SdArray>
+						<DefaultValue Class="CodeValue">
+							<Code><![CDATA[0]]></Code>
+						</DefaultValue>
+						<ParameterEditor>
+							<Id>1880000000022</Id>
+							<Label><![CDATA[模型模式：0完整/1传统SEIR/2单层SEIR/3无G无耦合]]></Label>
+							<EditorContolType>TEXT_BOX</EditorContolType>
+							<MinSliderValue><![CDATA[0]]></MinSliderValue>
+							<MaxSliderValue><![CDATA[3]]></MaxSliderValue>
+							<DelimeterType>NO_DELIMETER</DelimeterType>
+						</ParameterEditor>
+					</Properties>                 
+				</Variable>
+				<Variable Class="Parameter">
+					<Id>1880000000019</Id>
+					<Name><![CDATA[seedId]]></Name>
+					<X>1440</X><Y>1550</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties SaveInSnapshot="true" ModificatorType="STATIC">
+						<Type><![CDATA[int]]></Type>
+						<UnitType><![CDATA[NONE]]></UnitType>
+						<SdArray>false</SdArray>
+						<DefaultValue Class="CodeValue">
+							<Code><![CDATA[30]]></Code>
+						</DefaultValue>
+						<ParameterEditor>
+							<Id>1880000000020</Id>
+							<Label><![CDATA[实验种子编号]]></Label>
+							<EditorContolType>TEXT_BOX</EditorContolType>
+							<MinSliderValue><![CDATA[0]]></MinSliderValue>
+							<MaxSliderValue><![CDATA[100]]></MaxSliderValue>
+							<DelimeterType>NO_DELIMETER</DelimeterType>
+						</ParameterEditor>
+					</Properties>                 
+				</Variable>
+			</Variables>
+			<AgentLinks>
+				<AgentLink>
+					<Id>1654094819744</Id>
+					<Name><![CDATA[connections]]></Name>
+					<X>50</X><Y>-50</Y>
+					<Label><X>15</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<HandleReceiveInConnections>false</HandleReceiveInConnections>
+					<AgentLinkType>COLLECTION_OF_LINKS</AgentLinkType>
+					<AgentLinkBidirectional>true</AgentLinkBidirectional>
+					<MessageType><![CDATA[Object]]></MessageType>
+					<LineStyle>SOLID</LineStyle>
+					<LineWidth>1</LineWidth>
+					<LineColor>-16777216</LineColor>
+					<LineZOrder>UNDER_AGENTS</LineZOrder>
+					<LineArrow>NONE</LineArrow>
+					<LineArrowPosition>END</LineArrowPosition>
+				</AgentLink>
+			</AgentLinks>
+
+			<EmbeddedObjects>
+				<EmbeddedObject>
+					<Id>1654097144174</Id>
+					<Name><![CDATA[people]]></Name>
+					<X>140</X><Y>1260</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<PresentationId>1654097269699</PresentationId>
+					<ActiveObjectClass>
+						<PackageName><![CDATA[谣言传播模型]]></PackageName>
+						<ClassName><![CDATA[Person]]></ClassName>
+					</ActiveObjectClass>
+					<GenericParameterSubstitute>
+						<GenericParameterSubstituteReference>
+							<PackageName><![CDATA[谣言传播模型]]></PackageName>
+							<ClassName><![CDATA[Person]]></ClassName>
+							<ItemName><![CDATA[1654097144171]]></ItemName>
+						</GenericParameterSubstituteReference>
+					</GenericParameterSubstitute>
+					<Parameters>
+					</Parameters>
+					<ReplicationFlag>true</ReplicationFlag>
+					<Replication Class="CodeValue">
+						<Code><![CDATA[1000]]></Code>
+					</Replication>
+					<CollectionType>LINKED_HASH_SET_BASED</CollectionType>
+					<StatisticsItem>
+						<Id>1654349776405</Id>
+						<Name><![CDATA[Susceptible]]></Name>
+						<Type>count</Type>
+						<Expression><![CDATA[]]></Expression>
+						<Condition><![CDATA[agent.inState( Person.Susceptible )]]></Condition>
+					</StatisticsItem>
+					<StatisticsItem>
+						<Id>1729404118863</Id>
+						<Name><![CDATA[Exposed]]></Name>
+						<Type>count</Type>
+						<Expression><![CDATA[]]></Expression>
+						<Condition><![CDATA[agent.inState( Person.Exposed )]]></Condition>
+					</StatisticsItem>
+					<StatisticsItem>
+						<Id>1729404264620</Id>
+						<Name><![CDATA[OfflineInfected]]></Name>
+						<Type>count</Type>
+						<Expression><![CDATA[]]></Expression>
+						<Condition><![CDATA[agent.inState( Person.OfflineInfected )]]></Condition>
+					</StatisticsItem>
+					<StatisticsItem>
+						<Id>1654349777756</Id>
+						<Name><![CDATA[OnlineInfected]]></Name>
+						<Type>count</Type>
+						<Expression><![CDATA[]]></Expression>
+						<Condition><![CDATA[agent.inState( Person.OnlineInfected )]]></Condition>
+					</StatisticsItem>
+					<StatisticsItem>
+						<Id>1654349779030</Id>
+						<Name><![CDATA[ONOfficeRecovered]]></Name>
+						<Type>count</Type>
+						<Expression><![CDATA[]]></Expression>
+						<Condition><![CDATA[agent.inState( Person.ONOfficeRecovered )]]></Condition>
+					</StatisticsItem>
+					<StatisticsItem>
+						<Id>1729404276604</Id>
+						<Name><![CDATA[OFFOfficeRecovered]]></Name>
+						<Type>count</Type>
+						<Expression><![CDATA[]]></Expression>
+						<Condition><![CDATA[agent.inState( Person.OFFOfficeRecovered )]]></Condition>
+					</StatisticsItem>
+					<StatisticsItem>
+						<Id>1728884882086</Id>
+						<Name><![CDATA[Recovered]]></Name>
+						<Type>count</Type>
+						<Expression><![CDATA[]]></Expression>
+						<Condition><![CDATA[agent.inState( Person.Recovered )]]></Condition>
+					</StatisticsItem>
+					<InEnvironment>true</InEnvironment>
+					<InitialLocationType>XYZ</InitialLocationType>
+					<ColumnCode Class="CodeValue">
+						<Code><![CDATA[0]]></Code>
+					</ColumnCode>
+					<RowCode Class="CodeValue">
+						<Code><![CDATA[0]]></Code>
+					</RowCode>
+					<LocationNameCode Class="CodeValue">
+						<Code><![CDATA[""]]></Code>
+					</LocationNameCode>
+					<InitializationType>SPECIFIED_NUMBER</InitializationType>
+					<InitializationDatabaseTableQuery>
+						<Id>1654094799997</Id>
+						<TableReference>
+						</TableReference>
+					</InitializationDatabaseTableQuery>
+					<InitializationDatabaseType>ONE_AGENT_PER_DATABASE_RECORD</InitializationDatabaseType>
+					<QuantityColumn>
+					</QuantityColumn>
+				</EmbeddedObject>
+			</EmbeddedObjects>
+
+			<Presentation>
+				<Level>
+					<Id>1654094819748</Id>
+					<Name><![CDATA[level]]></Name>
+					<X>0</X><Y>0</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>true</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<DrawMode>SHAPE_DRAW_2D3D</DrawMode>
+					<Z>0</Z>
+					<LevelVisibility>DIM_NON_CURRENT</LevelVisibility>
+
+			<Presentation>
+				<EmbeddedObjectPresentation>
+					<Id>1654097269699</Id>
+					<Name><![CDATA[people_presentation]]></Name>
+					<X>160</X><Y>1300</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>true</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<DrawMode>SHAPE_DRAW_2D3D</DrawMode>
+					<EmbeddedIcon>false</EmbeddedIcon>
+					<Z>0</Z>
+					<Rotation>0.0</Rotation>
+					<ScaleType>AUTOMATICALLY_CALCULATED</ScaleType>
+					<GISScaleForRealEmbeddedObjectPresentationSize>1000</GISScaleForRealEmbeddedObjectPresentationSize>
+					<GISScaleForFixedEmbeddedObjectPresentationSize>1000000000</GISScaleForFixedEmbeddedObjectPresentationSize>
+					<Latitude>0.0</Latitude>
+					<Longitude>0.0</Longitude>
+				</EmbeddedObjectPresentation>
+				<Control Type="Button">
+				 	<EmbeddedIcon>false</EmbeddedIcon>				
+					<Id>1729307276116</Id>
+					<Name><![CDATA[线上辟谣干预状态]]></Name>
+					<X>200</X><Y>1420</Y>
+					<Label><X>0</X><Y>-10</Y></Label>
+					<PublicFlag>true</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<DrawMode>SHAPE_DRAW_2D3D</DrawMode>
+					<BasicProperties Width="300" Height="70">
+                        <EmbeddedIcon>false</EmbeddedIcon>	
+						<TextColor>-16777216</TextColor>
+						<Enabled>true</Enabled>
+						<ActionCode><![CDATA[isOnlineIntervention = true;]]></ActionCode>
+					</BasicProperties>
+					<ExtendedProperties>
+						<Font Name="Dialog" Size="28" Style="1"/>
+						<LabelText><![CDATA[线上辟谣干预状态]]></LabelText>
+					</ExtendedProperties>
+				</Control>
+				<Control Type="Button">
+				 	<EmbeddedIcon>false</EmbeddedIcon>				
+					<Id>1729307276117</Id>
+					<Name><![CDATA[线下辟谣干预状态]]></Name>
+					<X>200</X><Y>1510</Y>
+					<Label><X>0</X><Y>-10</Y></Label>
+					<PublicFlag>true</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<DrawMode>SHAPE_DRAW_2D3D</DrawMode>
+					<BasicProperties Width="300" Height="70">
+                        <EmbeddedIcon>false</EmbeddedIcon>	
+						<TextColor>-16777216</TextColor>
+						<Enabled>true</Enabled>
+						<ActionCode><![CDATA[isOfflineIntervention = true;]]></ActionCode>
+					</BasicProperties>
+					<ExtendedProperties>
+						<Font Name="Dialog" Size="28" Style="1"/>
+						<LabelText><![CDATA[线下辟谣干预状态]]></LabelText>
+					</ExtendedProperties>
+				</Control>
+				<Control Type="Slider">
+				 	<EmbeddedIcon>false</EmbeddedIcon>				
+					<Id>1729307417021</Id>
+					<Name><![CDATA[slider]]></Name>
+					<X>705</X><Y>1435</Y>
+					<Label><X>0</X><Y>-10</Y></Label>
+					<PublicFlag>true</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<DrawMode>SHAPE_DRAW_2D3D</DrawMode>
+					<BasicProperties Width="100" Height="30">
+                        <EmbeddedIcon>false</EmbeddedIcon>	
+						<Enabled>true</Enabled>
+					</BasicProperties>
+					<ExtendedProperties>
+						<DefaultValueCode><![CDATA[0]]></DefaultValueCode>
+						<Orientation>HORIZONTAL</Orientation>
+						<MinValue><![CDATA[0]]></MinValue>
+						<MaxValue><![CDATA[200]]></MaxValue>
+						<LinkTo>true</LinkTo>
+						<Link>线下辟谣影响系数</Link>
+					</ExtendedProperties>
+				</Control>
+				<Control Type="Slider">
+				 	<EmbeddedIcon>false</EmbeddedIcon>				
+					<Id>1729307920195</Id>
+					<Name><![CDATA[slider1]]></Name>
+					<X>705</X><Y>1385</Y>
+					<Label><X>0</X><Y>-10</Y></Label>
+					<PublicFlag>true</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<DrawMode>SHAPE_DRAW_2D3D</DrawMode>
+					<BasicProperties Width="100" Height="30">
+                        <EmbeddedIcon>false</EmbeddedIcon>	
+						<Enabled>true</Enabled>
+					</BasicProperties>
+					<ExtendedProperties>
+						<DefaultValueCode><![CDATA[0]]></DefaultValueCode>
+						<Orientation>HORIZONTAL</Orientation>
+						<MinValue><![CDATA[0]]></MinValue>
+						<MaxValue><![CDATA[1]]></MaxValue>
+						<LinkTo>true</LinkTo>
+						<Link>线上辟谣影响系数</Link>
+					</ExtendedProperties>
+				</Control>
+				<Control Type="Slider">
+				 	<EmbeddedIcon>false</EmbeddedIcon>				
+					<Id>1729403645709</Id>
+					<Name><![CDATA[slider2]]></Name>
+					<X>705</X><Y>1485</Y>
+					<Label><X>0</X><Y>-10</Y></Label>
+					<PublicFlag>true</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<DrawMode>SHAPE_DRAW_2D3D</DrawMode>
+					<BasicProperties Width="100" Height="30">
+                        <EmbeddedIcon>false</EmbeddedIcon>	
+						<Enabled>true</Enabled>
+					</BasicProperties>
+					<ExtendedProperties>
+						<DefaultValueCode><![CDATA[0]]></DefaultValueCode>
+						<Orientation>HORIZONTAL</Orientation>
+						<MinValue><![CDATA[0]]></MinValue>
+						<MaxValue><![CDATA[1000]]></MaxValue>
+						<LinkTo>true</LinkTo>
+						<Link>线下传播速率</Link>
+					</ExtendedProperties>
+				</Control>
+				<Control Type="Slider">
+				 	<EmbeddedIcon>false</EmbeddedIcon>				
+					<Id>1729403648318</Id>
+					<Name><![CDATA[slider3]]></Name>
+					<X>705</X><Y>1535</Y>
+					<Label><X>0</X><Y>-10</Y></Label>
+					<PublicFlag>true</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<DrawMode>SHAPE_DRAW_2D3D</DrawMode>
+					<BasicProperties Width="100" Height="30">
+                        <EmbeddedIcon>false</EmbeddedIcon>	
+						<Enabled>true</Enabled>
+					</BasicProperties>
+					<ExtendedProperties>
+						<DefaultValueCode><![CDATA[0]]></DefaultValueCode>
+						<Orientation>HORIZONTAL</Orientation>
+						<MinValue><![CDATA[200]]></MinValue>
+						<MaxValue><![CDATA[1000]]></MaxValue>
+						<LinkTo>true</LinkTo>
+						<Link>线上传播速率</Link>
+					</ExtendedProperties>
+				</Control>
+				<Control Type="Slider">
+				 	<EmbeddedIcon>false</EmbeddedIcon>				
+					<Id>1729403651060</Id>
+					<Name><![CDATA[slider4]]></Name>
+					<X>705</X><Y>1585</Y>
+					<Label><X>0</X><Y>-10</Y></Label>
+					<PublicFlag>true</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<DrawMode>SHAPE_DRAW_2D3D</DrawMode>
+					<BasicProperties Width="100" Height="30">
+                        <EmbeddedIcon>false</EmbeddedIcon>	
+						<Enabled>true</Enabled>
+					</BasicProperties>
+					<ExtendedProperties>
+						<DefaultValueCode><![CDATA[0]]></DefaultValueCode>
+						<Orientation>HORIZONTAL</Orientation>
+						<MinValue><![CDATA[0]]></MinValue>
+						<MaxValue><![CDATA[1]]></MaxValue>
+						<LinkTo>true</LinkTo>
+						<Link>直接免疫概率</Link>
+					</ExtendedProperties>
+				</Control>
+				<Control Type="Slider">
+				 	<EmbeddedIcon>false</EmbeddedIcon>				
+					<Id>1729403683149</Id>
+					<Name><![CDATA[slider5]]></Name>
+					<X>985</X><Y>1585</Y>
+					<Label><X>0</X><Y>-10</Y></Label>
+					<PublicFlag>true</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<DrawMode>SHAPE_DRAW_2D3D</DrawMode>
+					<BasicProperties Width="100" Height="30">
+                        <EmbeddedIcon>false</EmbeddedIcon>	
+						<Enabled>true</Enabled>
+					</BasicProperties>
+					<ExtendedProperties>
+						<DefaultValueCode><![CDATA[0]]></DefaultValueCode>
+						<Orientation>HORIZONTAL</Orientation>
+						<MinValue><![CDATA[0]]></MinValue>
+						<MaxValue><![CDATA[7]]></MaxValue>
+						<LinkTo>true</LinkTo>
+						<Link>免疫时间</Link>
+					</ExtendedProperties>
+				</Control>
+				<Control Type="Slider">
+				 	<EmbeddedIcon>false</EmbeddedIcon>				
+					<Id>1729403683160</Id>
+					<Name><![CDATA[slider6]]></Name>
+					<X>985</X><Y>1535</Y>
+					<Label><X>0</X><Y>-10</Y></Label>
+					<PublicFlag>true</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<DrawMode>SHAPE_DRAW_2D3D</DrawMode>
+					<BasicProperties Width="100" Height="30">
+                        <EmbeddedIcon>false</EmbeddedIcon>	
+						<Enabled>true</Enabled>
+					</BasicProperties>
+					<ExtendedProperties>
+						<DefaultValueCode><![CDATA[0]]></DefaultValueCode>
+						<Orientation>HORIZONTAL</Orientation>
+						<MinValue><![CDATA[0]]></MinValue>
+						<MaxValue><![CDATA[72]]></MaxValue>
+						<LinkTo>true</LinkTo>
+						<Link>辟谣者遗忘时间</Link>
+					</ExtendedProperties>
+				</Control>
+				<Control Type="Slider">
+				 	<EmbeddedIcon>false</EmbeddedIcon>				
+					<Id>1729403683166</Id>
+					<Name><![CDATA[slider7]]></Name>
+					<X>985</X><Y>1485</Y>
+					<Label><X>0</X><Y>-10</Y></Label>
+					<PublicFlag>true</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<DrawMode>SHAPE_DRAW_2D3D</DrawMode>
+					<BasicProperties Width="100" Height="30">
+                        <EmbeddedIcon>false</EmbeddedIcon>	
+						<Enabled>true</Enabled>
+					</BasicProperties>
+					<ExtendedProperties>
+						<DefaultValueCode><![CDATA[0]]></DefaultValueCode>
+						<Orientation>HORIZONTAL</Orientation>
+						<MinValue><![CDATA[0]]></MinValue>
+						<MaxValue><![CDATA[72]]></MaxValue>
+						<LinkTo>true</LinkTo>
+						<Link>遗忘时间</Link>
+					</ExtendedProperties>
+				</Control>
+				<Control Type="Slider">
+				 	<EmbeddedIcon>false</EmbeddedIcon>				
+					<Id>1729403683171</Id>
+					<Name><![CDATA[slider8]]></Name>
+					<X>985</X><Y>1385</Y>
+					<Label><X>0</X><Y>-10</Y></Label>
+					<PublicFlag>true</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<DrawMode>SHAPE_DRAW_2D3D</DrawMode>
+					<BasicProperties Width="100" Height="30">
+                        <EmbeddedIcon>false</EmbeddedIcon>	
+						<Enabled>true</Enabled>
+					</BasicProperties>
+					<ExtendedProperties>
+						<DefaultValueCode><![CDATA[0]]></DefaultValueCode>
+						<Orientation>HORIZONTAL</Orientation>
+						<MinValue><![CDATA[0	]]></MinValue>
+						<MaxValue><![CDATA[1]]></MaxValue>
+						<LinkTo>true</LinkTo>
+						<Link>线上辟谣概率</Link>
+					</ExtendedProperties>
+				</Control>
+				<Control Type="Slider">
+				 	<EmbeddedIcon>false</EmbeddedIcon>				
+					<Id>1729403683176</Id>
+					<Name><![CDATA[slider9]]></Name>
+					<X>985</X><Y>1435</Y>
+					<Label><X>0</X><Y>-10</Y></Label>
+					<PublicFlag>true</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<DrawMode>SHAPE_DRAW_2D3D</DrawMode>
+					<BasicProperties Width="100" Height="30">
+                        <EmbeddedIcon>false</EmbeddedIcon>	
+						<Enabled>true</Enabled>
+					</BasicProperties>
+					<ExtendedProperties>
+						<DefaultValueCode><![CDATA[0]]></DefaultValueCode>
+						<Orientation>HORIZONTAL</Orientation>
+						<MinValue><![CDATA[0]]></MinValue>
+						<MaxValue><![CDATA[1]]></MaxValue>
+						<LinkTo>true</LinkTo>
+						<Link>线下辟谣概率</Link>
+					</ExtendedProperties>
+				</Control>
+    			<TimeStackChart>
+					<Id>1729404326533</Id>
+					<Name><![CDATA[chart]]></Name>
+					<X>80</X><Y>1690</Y>
+					<Label><X>0</X><Y>-10</Y></Label>
+					<PublicFlag>true</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<DrawMode>SHAPE_DRAW_2D3D</DrawMode>
+					<AutoUpdate>true</AutoUpdate>
+					<RecurrenceProperties>
+						<Id>1781250994300</Id>
+						<OccurrenceAtTime>true</OccurrenceAtTime>
+						<OccurrenceDate>1585987200000</OccurrenceDate>
+						<OccurrenceTime Class="CodeUnitValue">
+							<Code><![CDATA[0]]></Code>
+							<Unit Class="TimeUnits"><![CDATA[DAY]]></Unit>
+						</OccurrenceTime>
+						<RecurrenceCode Class="CodeUnitValue">
+							<Code><![CDATA[10]]></Code>
+							<Unit Class="TimeUnits"><![CDATA[MINUTE]]></Unit>
+						</RecurrenceCode>
+					</RecurrenceProperties>
+					<EmbeddedIcon>false</EmbeddedIcon>
+					<Width>1280</Width>
+					<Height>440</Height>
+					<BackgroundColor/>
+					<BorderColor/>
+					<ChartArea>
+						<XOffset>50</XOffset>
+						<YOffset>50</YOffset>
+						<Width>1030</Width>
+						<Height>380</Height>
+						<BackgroundColor>-1</BackgroundColor>
+						<BorderColor/>
+						<GridColor>-12566464</GridColor>
+					</ChartArea>
+					<Legend>
+						<Place>EAST</Place>
+						<TextColor>-12566464</TextColor>
+						<Size>150</Size>
+					</Legend>
+					<Labels>
+						<HorLabelsPosition>DEFAULT</HorLabelsPosition>
+						<VerLabelsPosition>DEFAULT</VerLabelsPosition>
+						<TextColor>-12566464</TextColor>
+					</Labels>
+					<ShowLegend>true</ShowLegend>
+					<TimeWindowsMovementType>MOVEMENT_WITH_DATA</TimeWindowsMovementType>		
+					<TimeWindowUnits>HOUR</TimeWindowUnits>
+					<TimeWindowExpression><![CDATA[180]]></TimeWindowExpression>
+					<DatasetExpression>
+					<Id>1729404326524</Id>
+					<Expression><![CDATA[my_dataset]]></Expression>
+					<Color>-16711936</Color>
+					<Expression2><![CDATA[people.Susceptible()]]></Expression2>
+					<Expression2Flag>true</Expression2Flag>
+							<Title><![CDATA[Susceptible]]></Title>
+					</DatasetExpression>
+					<DatasetExpression>
+					<Id>1729404326525</Id>
+					<Expression><![CDATA[my_dataset]]></Expression>
+					<Color>-10496</Color>
+					<Expression2><![CDATA[people.Exposed()]]></Expression2>
+					<Expression2Flag>true</Expression2Flag>
+							<Title><![CDATA[Exposed]]></Title>
+					</DatasetExpression>
+					<DatasetExpression>
+					<Id>1729404326526</Id>
+					<Expression><![CDATA[my_dataset]]></Expression>
+					<Color>-47872</Color>
+					<Expression2><![CDATA[people.OnlineInfected()]]></Expression2>
+					<Expression2Flag>true</Expression2Flag>
+							<Title><![CDATA[线上Infected]]></Title>
+					</DatasetExpression>
+					<DatasetExpression>
+					<Id>1729404326528</Id>
+					<Expression><![CDATA[my_dataset]]></Expression>
+					<Color>-14774017</Color>
+					<Expression2><![CDATA[people.Recovered()]]></Expression2>
+					<Expression2Flag>true</Expression2Flag>
+							<Title><![CDATA[Recovered]]></Title>
+					</DatasetExpression>
+					<DatasetExpression>
+					<Id>1729404326529</Id>
+					<Expression><![CDATA[my_dataset]]></Expression>
+					<Color>-8388480</Color>
+					<Expression2><![CDATA[people.OFFOfficeRecovered()]]></Expression2>
+					<Expression2Flag>true</Expression2Flag>
+							<Title><![CDATA[线下OfficeRecovered]]></Title>
+					</DatasetExpression>
+					<DatasetExpression>
+					<Id>1729654812412</Id>
+					<Expression><![CDATA[my_dataset1]]></Expression>
+					<Color>-16711681</Color>
+					<Expression2><![CDATA[people.OfflineInfected()]]></Expression2>
+					<Expression2Flag>true</Expression2Flag>
+							<Title><![CDATA[线下Infected]]></Title>
+					</DatasetExpression>
+					<DatasetExpression>
+					<Id>1729654856822</Id>
+					<Expression><![CDATA[my_dataset2]]></Expression>
+					<Color>-3308225</Color>
+					<Expression2><![CDATA[people.ONOfficeRecovered()]]></Expression2>
+					<Expression2Flag>true</Expression2Flag>
+							<Title><![CDATA[线上ONOfficeRecovered()]]></Title>
+					</DatasetExpression>
+					<SamplesToKeep>10000</SamplesToKeep>
+					<VerScaleToExpression><![CDATA[1000]]></VerScaleToExpression>
+					<VerScaleType>FIXED</VerScaleType>
+					<LabelFormat>MODEL_TIME_UNITS</LabelFormat>
+    			</TimeStackChart>
+				<Control Type="Slider">
+				 	<EmbeddedIcon>false</EmbeddedIcon>				
+					<Id>1767370363452</Id>
+					<Name><![CDATA[slider10]]></Name>
+					<X>985</X><Y>1633</Y>
+					<Label><X>0</X><Y>-10</Y></Label>
+					<PublicFlag>true</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<DrawMode>SHAPE_DRAW_2D3D</DrawMode>
+					<BasicProperties Width="100" Height="30">
+                        <EmbeddedIcon>false</EmbeddedIcon>	
+						<Enabled>true</Enabled>
+					</BasicProperties>
+					<ExtendedProperties>
+						<DefaultValueCode><![CDATA[0]]></DefaultValueCode>
+						<Orientation>HORIZONTAL</Orientation>
+						<MinValue><![CDATA[0]]></MinValue>
+						<MaxValue><![CDATA[48]]></MaxValue>
+						<LinkTo>true</LinkTo>
+						<Link>潜伏时间</Link>
+					</ExtendedProperties>
+				</Control>
+			</Presentation>
+
+				</Level>
+			</Presentation>
+
+		</ActiveObjectClass>
+		<!--   =========   Active Object Class   ========  -->
+		<ActiveObjectClass>
+			<Id>1654097144173</Id>
+			<Name><![CDATA[Person]]></Name>
+			<Generic>false</Generic>
+			<GenericParameter>
+				<Id>1654097144171</Id>
+				<Name><![CDATA[1654097144171]]></Name>
+				<GenericParameterValue Class="CodeValue">
+					<Code><![CDATA[T extends Agent]]></Code>
+				</GenericParameterValue>
+				<GenericParameterLabel><![CDATA[泛型参数：]]></GenericParameterLabel>
+			</GenericParameter>
+			<FlowChartsUsage>ENTITY</FlowChartsUsage>
+			<SamplesToKeep>100</SamplesToKeep>
+			<LimitNumberOfArrayElements>false</LimitNumberOfArrayElements>
+			<ElementsLimitValue>100</ElementsLimitValue>
+			<MakeDefaultViewArea>true</MakeDefaultViewArea>
+			<SceneGridColor/>
+			<SceneBackgroundColor>-4144960</SceneBackgroundColor>
+			<SceneSkybox>null</SceneSkybox>
+			<AgentProperties>
+				<EnvironmentDefinesInitialLocation>true</EnvironmentDefinesInitialLocation>
+				<RotateAnimationTowardsMovement>true</RotateAnimationTowardsMovement>
+				<RotateAnimationVertically>false</RotateAnimationVertically>
+				<VelocityCode Class="CodeUnitValue">
+					<Code><![CDATA[10]]></Code>
+					<Unit Class="SpeedUnits"><![CDATA[MPS]]></Unit>
+				</VelocityCode>
+				<PhysicalLength Class="CodeUnitValue">
+					<Code><![CDATA[1]]></Code>
+					<Unit Class="LengthUnits"><![CDATA[METER]]></Unit>
+				</PhysicalLength>
+				<PhysicalWidth Class="CodeUnitValue">
+					<Code><![CDATA[1]]></Code>
+					<Unit Class="LengthUnits"><![CDATA[METER]]></Unit>
+				</PhysicalWidth>
+				<PhysicalHeight Class="CodeUnitValue">
+					<Code><![CDATA[1]]></Code>
+					<Unit Class="LengthUnits"><![CDATA[METER]]></Unit>
+				</PhysicalHeight>
+			</AgentProperties>
+			<EnvironmentProperties>
+					<EnableSteps>false</EnableSteps>
+					<StepDurationCode Class="CodeUnitValue">
+						<Code><![CDATA[1.0]]></Code>
+						<Unit Class="TimeUnits"><![CDATA[SECOND]]></Unit>
+					</StepDurationCode>
+					<SpaceType>CONTINUOUS</SpaceType>
+					<WidthCode><![CDATA[500]]></WidthCode>
+					<HeightCode><![CDATA[500]]></HeightCode>
+					<ZHeightCode><![CDATA[0]]></ZHeightCode>
+					<ColumnsCountCode><![CDATA[100]]></ColumnsCountCode>
+					<RowsCountCode><![CDATA[100]]></RowsCountCode>
+					<NeigborhoodType>MOORE</NeigborhoodType>
+					<LayoutType>USER_DEF</LayoutType>
+					<NetworkType>USER_DEF</NetworkType>
+					<ConnectionsPerAgentCode><![CDATA[2]]></ConnectionsPerAgentCode>
+					<ConnectionsRangeCode><![CDATA[50]]></ConnectionsRangeCode>
+					<NeighborLinkFractionCode><![CDATA[0.95]]></NeighborLinkFractionCode>
+					<MCode><![CDATA[10]]></MCode>
+			</EnvironmentProperties>
+			<DatasetsCreationProperties>
+				<AutoCreate>true</AutoCreate>
+					<Id>1654094799996</Id>
+					<OccurrenceAtTime>true</OccurrenceAtTime>
+					<OccurrenceDate>1654156800000</OccurrenceDate>
+					<OccurrenceTime Class="CodeUnitValue">
+						<Code><![CDATA[0]]></Code>
+						<Unit Class="TimeUnits"><![CDATA[HOUR]]></Unit>
+					</OccurrenceTime>
+					<RecurrenceCode Class="CodeUnitValue">
+						<Code><![CDATA[1]]></Code>
+						<Unit Class="TimeUnits"><![CDATA[HOUR]]></Unit>
+					</RecurrenceCode>
+			</DatasetsCreationProperties>
+			<ScaleRuler>
+				<Id>1654097144169</Id>
+				<Name><![CDATA[scale]]></Name>
+				<X>0</X><Y>-150</Y>
+				<PublicFlag>false</PublicFlag>
+				<PresentationFlag>false</PresentationFlag>
+				<ShowLabel>false</ShowLabel>
+				<DrawMode>SHAPE_DRAW_2D3D</DrawMode>
+				<Length>100</Length>
+				<Rotation>0</Rotation>
+				<ScaleType>BASED_ON_LENGTH</ScaleType>
+				<ModelLength>10</ModelLength>
+				<LengthUnits>METER</LengthUnits>
+				<Scale>10</Scale>
+				<InheritedFromParentAgentType>true</InheritedFromParentAgentType>
+			</ScaleRuler>
+			<CurrentLevel>1654097144172</CurrentLevel>
+			<ConnectionsId>1654097144168</ConnectionsId>
+			<Variables>
+				<Variable Class="PlainVariable">
+					<Id>1729306356424</Id>
+					<Name><![CDATA[Infection]]></Name>
+					<X>670</X><Y>40</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties SaveInSnapshot="true" Constant="false" AccessType="public" StaticVariable="false">
+						<Type><![CDATA[double]]></Type>        
+						<InitialValue Class="CodeValue">
+							<Code><![CDATA[0]]></Code>
+						</InitialValue>
+					</Properties>
+				</Variable>
+				<Variable Class="PlainVariable">
+					<Id>1729403172656</Id>
+					<Name><![CDATA[阈值]]></Name>
+					<X>450</X><Y>40</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties SaveInSnapshot="true" Constant="false" AccessType="public" StaticVariable="false">
+						<Type><![CDATA[double]]></Type>        
+						<InitialValue Class="CodeValue">
+							<Code><![CDATA[uniform(0.4, 0.6)]]></Code>
+						</InitialValue>
+					</Properties>
+				</Variable>
+				<Variable Class="AuxVariable">
+					<Id>1729403893520</Id>
+					<Name><![CDATA[线下传播速率]]></Name>
+					<X>451.913</X><Y>130.708</Y>
+					<Label><X>10</X><Y>1</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties External="false" Constant="false" Array="false">
+						<Formula><![CDATA[main.线下传播速率]]></Formula>
+						<Value><![CDATA[0]]></Value>
+						<Color>-4073239</Color>
+					</Properties>
+
+				</Variable>
+				<Variable Class="AuxVariable">
+					<Id>1729403912820</Id>
+					<Name><![CDATA[线上传播速率]]></Name>
+					<X>451.913</X><Y>89.178</Y>
+					<Label><X>12</X><Y>2</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties External="false" Constant="false" Array="false">
+						<Formula><![CDATA[main.线上传播速率]]></Formula>
+						<Value><![CDATA[0]]></Value>
+						<Color>-4073239</Color>
+					</Properties>
+
+				</Variable>
+				<Variable Class="AuxVariable">
+					<Id>1729403930246</Id>
+					<Name><![CDATA[直接免疫概率]]></Name>
+					<X>671.091</X><Y>89.178</Y>
+					<Label><X>12</X><Y>2</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties External="false" Constant="false" Array="false">
+						<Formula><![CDATA[main.直接免疫概率]]></Formula>
+						<Value><![CDATA[0]]></Value>
+						<Color>-4073239</Color>
+					</Properties>
+
+				</Variable>
+				<Variable Class="AuxVariable">
+					<Id>1729403951696</Id>
+					<Name><![CDATA[辟谣者遗忘时间]]></Name>
+					<X>671.091</X><Y>172.238</Y>
+					<Label><X>14</X><Y>2</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties External="false" Constant="false" Array="false">
+						<Formula><![CDATA[main.辟谣者遗忘时间]]></Formula>
+						<Value><![CDATA[0]]></Value>
+						<Color>-4073239</Color>
+					</Properties>
+
+				</Variable>
+				<Variable Class="AuxVariable">
+					<Id>1729403969385</Id>
+					<Name><![CDATA[免疫时间]]></Name>
+					<X>671.091</X><Y>130.708</Y>
+					<Label><X>12</X><Y>3</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties External="false" Constant="false" Array="false">
+						<Formula><![CDATA[main.免疫时间]]></Formula>
+						<Value><![CDATA[0]]></Value>
+						<Color>-4073239</Color>
+					</Properties>
+
+				</Variable>
+				<Variable Class="AuxVariable">
+					<Id>1729404044560</Id>
+					<Name><![CDATA[遗忘时间]]></Name>
+					<X>671.091</X><Y>213.767</Y>
+					<Label><X>14</X><Y>-1</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties External="false" Constant="false" Array="false">
+						<Formula><![CDATA[main.遗忘时间]]></Formula>
+						<Value><![CDATA[0]]></Value>
+						<Color>-4073239</Color>
+					</Properties>
+
+				</Variable>
+				<Variable Class="AuxVariable">
+					<Id>1729404060730</Id>
+					<Name><![CDATA[线下辟谣概率]]></Name>
+					<X>451.913</X><Y>213.767</Y>
+					<Label><X>12</X><Y>3</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties External="false" Constant="false" Array="false">
+						<Formula><![CDATA[main.线下辟谣概率]]></Formula>
+						<Value><![CDATA[0]]></Value>
+						<Color>-4073239</Color>
+					</Properties>
+
+				</Variable>
+				<Variable Class="AuxVariable">
+					<Id>1729404074934</Id>
+					<Name><![CDATA[线上辟谣概率]]></Name>
+					<X>451.913</X><Y>172.238</Y>
+					<Label><X>12</X><Y>3</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties External="false" Constant="false" Array="false">
+						<Formula><![CDATA[main.线上辟谣概率]]></Formula>
+						<Value><![CDATA[0]]></Value>
+						<Color>-4073239</Color>
+					</Properties>
+
+				</Variable>
+				<Variable Class="AuxVariable">
+					<Id>1769990000004</Id>
+					<Name><![CDATA[潜伏时间]]></Name>
+					<X>840</X><Y>90</Y>
+					<Label><X>14</X><Y>2</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties External="false" Constant="false" Array="false">
+						<Formula><![CDATA[main.潜伏时间]]></Formula>
+						<Value><![CDATA[0]]></Value>
+						<Color>-4073239</Color>
+					</Properties>
+
+				</Variable>
+			</Variables>
+			<StatechartElements>
+				<StatechartElement Class="State" ParentState="ROOT_NODE">
+					<Id>1729305003144</Id>
+					<Name><![CDATA[Susceptible]]></Name>
+					<X>260</X><Y>650</Y>
+					<Label><X>105</X><Y>25</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties Width="270" Height="50">
+						<EntryAction><![CDATA[oval.setFillColor(lime);]]></EntryAction>
+						<FillColor>-16711936</FillColor>
+					</Properties>
+				</StatechartElement>
+				<StatechartElement Class="State" ParentState="ROOT_NODE">
+					<Id>1729305003147</Id>
+					<Name><![CDATA[Exposed]]></Name>
+					<X>700</X><Y>630</Y>
+					<Label><X>65</X><Y>50</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties Width="190" Height="105">
+						<EntryAction><![CDATA[oval.setFillColor(black);]]></EntryAction>
+						<FillColor>-8355712</FillColor>
+					</Properties>
+				</StatechartElement>
+				<StatechartElement Class="State" ParentState="ROOT_NODE">
+					<Id>1729305003149</Id>
+					<Name><![CDATA[OnlineInfected]]></Name>
+					<X>1070</X><Y>380</Y>
+					<Label><X>60</X><Y>25</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties Width="190" Height="50">
+						<EntryAction><![CDATA[oval.setFillColor(red);]]></EntryAction>
+						<FillColor>-65536</FillColor>
+					</Properties>
+				</StatechartElement>
+				<StatechartElement Class="State" ParentState="ROOT_NODE">
+					<Id>1729305003151</Id>
+					<Name><![CDATA[Recovered]]></Name>
+					<X>1410</X><Y>380</Y>
+					<Label><X>60</X><Y>25</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties Width="190" Height="50">
+						<EntryAction><![CDATA[oval.setFillColor(dodgerBlue);]]></EntryAction>
+						<FillColor>-14774017</FillColor>
+					</Properties>
+				</StatechartElement>
+				<StatechartElement Class="State" ParentState="ROOT_NODE">
+					<Id>1729305003155</Id>
+					<Name><![CDATA[ONOfficeRecovered]]></Name>
+					<X>1070</X><Y>540</Y>
+					<Label><X>10</X><Y>25</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties Width="190" Height="50">
+						<EntryAction><![CDATA[oval.setFillColor(peru);]]></EntryAction>
+						<FillColor>-3308225</FillColor>
+					</Properties>
+				</StatechartElement>
+				<StatechartElement Class="State" ParentState="ROOT_NODE">
+					<Id>1729305003157</Id>
+					<Name><![CDATA[OfflineInfected]]></Name>
+					<X>1070</X><Y>950</Y>
+					<Label><X>60</X><Y>25</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties Width="190" Height="50">
+						<EntryAction><![CDATA[oval.setFillColor(cyan);]]></EntryAction>
+						<FillColor>-16711681</FillColor>
+					</Properties>
+				</StatechartElement>
+				<StatechartElement Class="State" ParentState="ROOT_NODE">
+					<Id>1729305003161</Id>
+					<Name><![CDATA[OFFOfficeRecovered]]></Name>
+					<X>1070</X><Y>800</Y>
+					<Label><X>5</X><Y>30</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Properties Width="190" Height="50">
+						<EntryAction><![CDATA[oval.setFillColor(magenta);]]></EntryAction>
+						<FillColor>-65281</FillColor>
+					</Properties>
+				</StatechartElement>
+				<StatechartElement Class="Branch" ParentState="ROOT_NODE">
+					<Id>1767358152757</Id>
+					<Name><![CDATA[branch]]></Name>
+					<X>970</X><Y>680</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<Properties>	
+					</Properties>	
+				</StatechartElement>
+				<StatechartElement Class="EntryPoint" ParentState="ROOT_NODE">
+					<Id>1729305003163</Id>
+					<Name><![CDATA[statechart]]></Name>
+					<X>200</X><Y>680</Y>
+					<Label><X>-50</X><Y>25</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Points>
+						<Point><X>0</X><Y>0</Y></Point>
+						<Point><X>60</X><Y>0</Y></Point>
+					</Points>
+					<Properties Target="1729305003144">
+					</Properties>	
+				</StatechartElement>
+				<StatechartElement Class="Transition" ParentState="ROOT_NODE">
+					<Id>1729305003165</Id>
+					<Name><![CDATA[transition4]]></Name>
+					<X>530</X><Y>680</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<Points>
+						<Point><X>0</X><Y>0</Y></Point>
+						<Point><X>170</X><Y>0</Y></Point>
+					</Points>
+					<IconOffset>100.0</IconOffset>
+					<Properties Source="1729305003144" Target="1729305003147" Trigger="rate">
+						<Timeout Class="CodeUnitValue">
+							<Code><![CDATA[1]]></Code>
+							<Unit Class="TimeUnits"><![CDATA[SECOND]]></Unit>
+						</Timeout>
+						<Condition><![CDATA[this.Infection >= this.阈值]]></Condition>
+						<Rate Class="CodeUnitValue">
+							<Code><![CDATA[getInfectionRate_Online() + getInfectionRate_Offline()]]></Code>
+							<Unit Class="RateUnits"><![CDATA[PER_HOUR]]></Unit>
+						</Rate>
+						<MessageType><![CDATA[Object]]></MessageType>
+						<DefaultTransition>true</DefaultTransition>
+						<FilterType><![CDATA[equalsTo]]></FilterType>
+						<EqualsExpression><![CDATA["感染"]]></EqualsExpression>
+						<SatisfiesExpression><![CDATA[true]]></SatisfiesExpression>
+					</Properties>	
+				</StatechartElement>
+				<StatechartElement Class="Transition" ParentState="ROOT_NODE">
+					<Id>1729305003167</Id>
+					<Name><![CDATA[transition5]]></Name>
+					<X>970</X><Y>670</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<Points>
+						<Point><X>0</X><Y>0</Y></Point>
+						<Point><X>100</X><Y>-250</Y></Point>
+					</Points>
+					<IconOffset>70.0</IconOffset>
+					<Properties Source="1767358152757" Target="1729305003149" Trigger="rate">
+						<Timeout Class="CodeUnitValue">
+							<Code><![CDATA[潜伏时间]]></Code>
+							<Unit Class="TimeUnits"><![CDATA[HOUR]]></Unit>
+						</Timeout>
+						<Condition><![CDATA[(main.modelMode == 1 || main.modelMode == 2) || uniform(0,1) < 0.70]]></Condition>
+						<Rate Class="CodeUnitValue">
+							<Code><![CDATA[1]]></Code>
+							<Unit Class="RateUnits"><![CDATA[PER_SECOND]]></Unit>
+						</Rate>
+						<MessageType><![CDATA[Object]]></MessageType>
+						<DefaultTransition>false</DefaultTransition>
+						<FilterType><![CDATA[unconditionally]]></FilterType>
+						<EqualsExpression><![CDATA["text"]]></EqualsExpression>
+						<SatisfiesExpression><![CDATA[true]]></SatisfiesExpression>
+					</Properties>	
+				</StatechartElement>
+				<StatechartElement Class="Transition" ParentState="ROOT_NODE">
+					<Id>1729305003169</Id>
+					<Name><![CDATA[transition6]]></Name>
+					<X>1260</X><Y>390</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<Points>
+						<Point><X>0</X><Y>0</Y></Point>
+						<Point><X>150</X><Y>0</Y></Point>
+					</Points>
+					<IconOffset>80.0</IconOffset>
+					<Properties Source="1729305003149" Target="1729305003151" Trigger="timeout">
+						<Timeout Class="CodeUnitValue">
+							<Code><![CDATA[uniform(遗忘时间 * 0.5, 遗忘时间 * 1.5)]]></Code>
+							<Unit Class="TimeUnits"><![CDATA[HOUR]]></Unit>
+						</Timeout>
+						<Condition><![CDATA[true]]></Condition>
+						<Rate Class="CodeUnitValue">
+							<Code><![CDATA[1]]></Code>
+							<Unit Class="RateUnits"><![CDATA[PER_SECOND]]></Unit>
+						</Rate>
+						<MessageType><![CDATA[Object]]></MessageType>
+						<DefaultTransition>true</DefaultTransition>
+						<FilterType><![CDATA[unconditionally]]></FilterType>
+						<EqualsExpression><![CDATA["text"]]></EqualsExpression>
+						<SatisfiesExpression><![CDATA[true]]></SatisfiesExpression>
+					</Properties>	
+				</StatechartElement>
+				<StatechartElement Class="Transition" ParentState="ROOT_NODE">
+					<Id>1729305003171</Id>
+					<Name><![CDATA[transition8]]></Name>
+					<X>1410</X><Y>420</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<Points>
+						<Point><X>0</X><Y>0</Y></Point>
+						<Point><X>-150</X><Y>0</Y></Point>
+					</Points>
+					<IconOffset>70.0</IconOffset>
+					<Properties Source="1729305003151" Target="1729305003149" Trigger="rate">
+						<Timeout Class="CodeUnitValue">
+							<Code><![CDATA[10000]]></Code>
+							<Unit Class="TimeUnits"><![CDATA[DAY]]></Unit>
+						</Timeout>
+						<Condition><![CDATA[true]]></Condition>
+						<Rate Class="CodeUnitValue">
+							<Code><![CDATA[main.modelMode == 0 ? getInfectionRate_Online() * 0.001 : 0.0]]></Code>
+							<Unit Class="RateUnits"><![CDATA[PER_HOUR]]></Unit>
+						</Rate>
+						<MessageType><![CDATA[Object]]></MessageType>
+						<DefaultTransition>true</DefaultTransition>
+						<FilterType><![CDATA[unconditionally]]></FilterType>
+						<EqualsExpression><![CDATA["text"]]></EqualsExpression>
+						<SatisfiesExpression><![CDATA[true]]></SatisfiesExpression>
+					</Properties>	
+				</StatechartElement>
+				<StatechartElement Class="Transition" ParentState="ROOT_NODE">
+					<Id>1729305003177</Id>
+					<Name><![CDATA[transition13]]></Name>
+					<X>890</X><Y>645</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<Points>
+						<Point><X>0</X><Y>0</Y></Point>
+						<Point><X>270</X><Y>0</Y></Point>
+						<Point><X>270</X><Y>-55</Y></Point>
+					</Points>
+					<IconOffset>60.0</IconOffset>
+					<Properties Source="1729305003147" Target="1729305003155" Trigger="rate">
+						<Timeout Class="CodeUnitValue">
+							<Code><![CDATA[1]]></Code>
+							<Unit Class="TimeUnits"><![CDATA[SECOND]]></Unit>
+						</Timeout>
+						<Condition><![CDATA[true]]></Condition>
+						<Rate Class="CodeUnitValue">
+							<Code><![CDATA[getInterventionRate_Online()]]></Code>
+							<Unit Class="RateUnits"><![CDATA[PER_HOUR]]></Unit>
+						</Rate>
+						<MessageType><![CDATA[Object]]></MessageType>
+						<DefaultTransition>false</DefaultTransition>
+						<FilterType><![CDATA[equalsTo]]></FilterType>
+						<EqualsExpression><![CDATA["线上辟谣干预状态"]]></EqualsExpression>
+						<SatisfiesExpression><![CDATA[true]]></SatisfiesExpression>
+					</Properties>	
+				</StatechartElement>
+				<StatechartElement Class="Transition" ParentState="ROOT_NODE">
+					<Id>1729305003179</Id>
+					<Name><![CDATA[transition14]]></Name>
+					<X>1160</X><Y>430</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<Points>
+						<Point><X>0</X><Y>0</Y></Point>
+						<Point><X>0</X><Y>110</Y></Point>
+					</Points>
+					<IconOffset>50.0</IconOffset>
+					<Properties Source="1729305003149" Target="1729305003155" Trigger="rate">
+						<Timeout Class="CodeUnitValue">
+							<Code><![CDATA[1]]></Code>
+							<Unit Class="TimeUnits"><![CDATA[SECOND]]></Unit>
+						</Timeout>
+						<Condition><![CDATA[true]]></Condition>
+						<Rate Class="CodeUnitValue">
+							<Code><![CDATA[getInterventionRate_Online()]]></Code>
+							<Unit Class="RateUnits"><![CDATA[PER_HOUR]]></Unit>
+						</Rate>
+						<MessageType><![CDATA[Object]]></MessageType>
+						<DefaultTransition>true</DefaultTransition>
+						<FilterType><![CDATA[equalsTo]]></FilterType>
+						<EqualsExpression><![CDATA["线上辟谣干预状态"]]></EqualsExpression>
+						<SatisfiesExpression><![CDATA[true]]></SatisfiesExpression>
+					</Properties>	
+				</StatechartElement>
+				<StatechartElement Class="Transition" ParentState="ROOT_NODE">
+					<Id>1729305003181</Id>
+					<Name><![CDATA[transition15]]></Name>
+					<X>1260</X><Y>570</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<Points>
+						<Point><X>0</X><Y>0</Y></Point>
+						<Point><X>220</X><Y>0</Y></Point>
+						<Point><X>220</X><Y>-140</Y></Point>
+					</Points>
+					<IconOffset>80.0</IconOffset>
+					<Properties Source="1729305003155" Target="1729305003151" Trigger="timeout">
+						<Timeout Class="CodeUnitValue">
+							<Code><![CDATA[辟谣者遗忘时间]]></Code>
+							<Unit Class="TimeUnits"><![CDATA[DAY]]></Unit>
+						</Timeout>
+						<Condition><![CDATA[true]]></Condition>
+						<Rate Class="CodeUnitValue">
+							<Code><![CDATA[1]]></Code>
+							<Unit Class="RateUnits"><![CDATA[PER_SECOND]]></Unit>
+						</Rate>
+						<MessageType><![CDATA[Object]]></MessageType>
+						<DefaultTransition>true</DefaultTransition>
+						<FilterType><![CDATA[unconditionally]]></FilterType>
+						<EqualsExpression><![CDATA["text"]]></EqualsExpression>
+						<SatisfiesExpression><![CDATA[true]]></SatisfiesExpression>
+					</Properties>	
+				</StatechartElement>
+				<StatechartElement Class="Transition" ParentState="ROOT_NODE">
+					<Id>1729305003183</Id>
+					<Name><![CDATA[transition16]]></Name>
+					<X>970</X><Y>670</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<Points>
+						<Point><X>0</X><Y>0</Y></Point>
+						<Point><X>0</X><Y>-350</Y></Point>
+						<Point><X>510</X><Y>-350</Y></Point>
+						<Point><X>510</X><Y>-290</Y></Point>
+					</Points>
+					<IconOffset>90.0</IconOffset>
+					<Properties Source="1767358152757" Target="1729305003151" Trigger="timeout">
+						<Timeout Class="CodeUnitValue">
+							<Code><![CDATA[免疫时间]]></Code>
+							<Unit Class="TimeUnits"><![CDATA[DAY]]></Unit>
+						</Timeout>
+						<Condition><![CDATA[randomTrue(0.05)]]></Condition>
+						<Rate Class="CodeUnitValue">
+							<Code><![CDATA[1]]></Code>
+							<Unit Class="RateUnits"><![CDATA[PER_SECOND]]></Unit>
+						</Rate>
+						<MessageType><![CDATA[Object]]></MessageType>
+						<DefaultTransition>true</DefaultTransition>
+						<FilterType><![CDATA[unconditionally]]></FilterType>
+						<EqualsExpression><![CDATA["text"]]></EqualsExpression>
+						<SatisfiesExpression><![CDATA[true]]></SatisfiesExpression>
+					</Properties>	
+				</StatechartElement>
+				<StatechartElement Class="Transition" ParentState="ROOT_NODE">
+					<Id>1729305003185</Id>
+					<Name><![CDATA[transition17]]></Name>
+					<X>420</X><Y>650</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<Points>
+						<Point><X>0</X><Y>0</Y></Point>
+						<Point><X>0</X><Y>-380</Y></Point>
+						<Point><X>1140</X><Y>-380</Y></Point>
+						<Point><X>1140</X><Y>-270</Y></Point>
+					</Points>
+					<IconOffset>60.0</IconOffset>
+					<Properties Source="1729305003144" Target="1729305003151" Trigger="rate">
+						<Timeout Class="CodeUnitValue">
+							<Code><![CDATA[1]]></Code>
+							<Unit Class="TimeUnits"><![CDATA[SECOND]]></Unit>
+						</Timeout>
+						<Condition><![CDATA[true]]></Condition>
+						<Rate Class="CodeUnitValue">
+							<Code><![CDATA[main.直接免疫概率]]></Code>
+							<Unit Class="RateUnits"><![CDATA[PER_HOUR]]></Unit>
+						</Rate>
+						<MessageType><![CDATA[Object]]></MessageType>
+						<DefaultTransition>true</DefaultTransition>
+						<FilterType><![CDATA[unconditionally]]></FilterType>
+						<EqualsExpression><![CDATA["text"]]></EqualsExpression>
+						<SatisfiesExpression><![CDATA[true]]></SatisfiesExpression>
+					</Properties>	
+				</StatechartElement>
+				<StatechartElement Class="Transition" ParentState="ROOT_NODE">
+					<Id>1729305003193</Id>
+					<Name><![CDATA[transition21]]></Name>
+					<X>890</X><Y>720</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<Points>
+						<Point><X>0</X><Y>0</Y></Point>
+						<Point><X>270</X><Y>0</Y></Point>
+						<Point><X>270</X><Y>80</Y></Point>
+					</Points>
+					<IconOffset>60.0</IconOffset>
+					<Properties Source="1729305003147" Target="1729305003161" Trigger="rate">
+						<Timeout Class="CodeUnitValue">
+							<Code><![CDATA[1]]></Code>
+							<Unit Class="TimeUnits"><![CDATA[SECOND]]></Unit>
+						</Timeout>
+						<Condition><![CDATA[true]]></Condition>
+						<Rate Class="CodeUnitValue">
+							<Code><![CDATA[getInterventionRate_Offline()]]></Code>
+							<Unit Class="RateUnits"><![CDATA[PER_HOUR]]></Unit>
+						</Rate>
+						<MessageType><![CDATA[Object]]></MessageType>
+						<DefaultTransition>false</DefaultTransition>
+						<FilterType><![CDATA[equalsTo]]></FilterType>
+						<EqualsExpression><![CDATA["线下辟谣干预状态"]]></EqualsExpression>
+						<SatisfiesExpression><![CDATA[true]]></SatisfiesExpression>
+					</Properties>	
+				</StatechartElement>
+				<StatechartElement Class="Transition" ParentState="ROOT_NODE">
+					<Id>1729305003195</Id>
+					<Name><![CDATA[transition22]]></Name>
+					<X>1260</X><Y>830</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<Points>
+						<Point><X>0</X><Y>0</Y></Point>
+						<Point><X>260</X><Y>0</Y></Point>
+						<Point><X>260</X><Y>-400</Y></Point>
+					</Points>
+					<IconOffset>80.0</IconOffset>
+					<Properties Source="1729305003161" Target="1729305003151" Trigger="timeout">
+						<Timeout Class="CodeUnitValue">
+							<Code><![CDATA[辟谣者遗忘时间]]></Code>
+							<Unit Class="TimeUnits"><![CDATA[DAY]]></Unit>
+						</Timeout>
+						<Condition><![CDATA[true]]></Condition>
+						<Rate Class="CodeUnitValue">
+							<Code><![CDATA[1]]></Code>
+							<Unit Class="RateUnits"><![CDATA[PER_SECOND]]></Unit>
+						</Rate>
+						<MessageType><![CDATA[Object]]></MessageType>
+						<DefaultTransition>true</DefaultTransition>
+						<FilterType><![CDATA[unconditionally]]></FilterType>
+						<EqualsExpression><![CDATA["text"]]></EqualsExpression>
+						<SatisfiesExpression><![CDATA[true]]></SatisfiesExpression>
+					</Properties>	
+				</StatechartElement>
+				<StatechartElement Class="Transition" ParentState="ROOT_NODE">
+					<Id>1729305003197</Id>
+					<Name><![CDATA[transition23]]></Name>
+					<X>1160</X><Y>950</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<Points>
+						<Point><X>0</X><Y>0</Y></Point>
+						<Point><X>0</X><Y>-100</Y></Point>
+					</Points>
+					<IconOffset>50.0</IconOffset>
+					<Properties Source="1729305003157" Target="1729305003161" Trigger="rate">
+						<Timeout Class="CodeUnitValue">
+							<Code><![CDATA[1]]></Code>
+							<Unit Class="TimeUnits"><![CDATA[SECOND]]></Unit>
+						</Timeout>
+						<Condition><![CDATA[true]]></Condition>
+						<Rate Class="CodeUnitValue">
+							<Code><![CDATA[getInterventionRate_Offline()]]></Code>
+							<Unit Class="RateUnits"><![CDATA[PER_HOUR]]></Unit>
+						</Rate>
+						<MessageType><![CDATA[Object]]></MessageType>
+						<DefaultTransition>true</DefaultTransition>
+						<FilterType><![CDATA[equalsTo]]></FilterType>
+						<EqualsExpression><![CDATA["线下辟谣干预状态"]]></EqualsExpression>
+						<SatisfiesExpression><![CDATA[true]]></SatisfiesExpression>
+					</Properties>	
+				</StatechartElement>
+				<StatechartElement Class="Transition" ParentState="OnlineInfected" ParentStateId="1729305003149">
+					<Id>1729305524399</Id>
+					<Name><![CDATA[transition11]]></Name>
+					<X>1100</X><Y>380</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<Points>
+						<Point><X>0</X><Y>0</Y></Point>
+						<Point><X>0</X><Y>50</Y></Point>
+					</Points>
+					<IconOffset>10.0</IconOffset>
+					<Properties Source="1729305003149" Target="1729305003149" Trigger="rate">
+						<Action><![CDATA[sendToRandomConnected("感染");]]></Action>
+						<Timeout Class="CodeUnitValue">
+							<Code><![CDATA[1]]></Code>
+							<Unit Class="TimeUnits"><![CDATA[HOUR]]></Unit>
+						</Timeout>
+						<Condition><![CDATA[true]]></Condition>
+						<Rate Class="CodeUnitValue">
+							<Code><![CDATA[main.modelMode == 0 ? (线上传播速率 / 24.0) * 0.01 : 0.0]]></Code>
+							<Unit Class="RateUnits"><![CDATA[PER_HOUR]]></Unit>
+						</Rate>
+						<MessageType><![CDATA[Object]]></MessageType>
+						<DefaultTransition>true</DefaultTransition>
+						<FilterType><![CDATA[unconditionally]]></FilterType>
+						<EqualsExpression><![CDATA["text"]]></EqualsExpression>
+						<SatisfiesExpression><![CDATA[true]]></SatisfiesExpression>
+					</Properties>	
+				</StatechartElement>
+				<StatechartElement Class="Transition" ParentState="OnlineInfected" ParentStateId="1729305003149">
+					<Id>1729305602893</Id>
+					<Name><![CDATA[transition12]]></Name>
+					<X>1130</X><Y>380</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<Points>
+						<Point><X>0</X><Y>0</Y></Point>
+						<Point><X>0</X><Y>50</Y></Point>
+					</Points>
+					<IconOffset>10.0</IconOffset>
+					<Properties Source="1729305003149" Target="1729305003149" Trigger="rate">
+						<Action><![CDATA[sendToRandom("感染");]]></Action>
+						<Timeout Class="CodeUnitValue">
+							<Code><![CDATA[1]]></Code>
+							<Unit Class="TimeUnits"><![CDATA[HOUR]]></Unit>
+						</Timeout>
+						<Condition><![CDATA[true]]></Condition>
+						<Rate Class="CodeUnitValue">
+							<Code><![CDATA[main.modelMode == 0 ? (线下传播速率 / 24.0) * 0.01 : 0.0]]></Code>
+							<Unit Class="RateUnits"><![CDATA[PER_HOUR]]></Unit>
+						</Rate>
+						<MessageType><![CDATA[Object]]></MessageType>
+						<DefaultTransition>true</DefaultTransition>
+						<FilterType><![CDATA[unconditionally]]></FilterType>
+						<EqualsExpression><![CDATA["text"]]></EqualsExpression>
+						<SatisfiesExpression><![CDATA[true]]></SatisfiesExpression>
+					</Properties>	
+				</StatechartElement>
+				<StatechartElement Class="Transition" ParentState="OfflineInfected" ParentStateId="1729305003157">
+					<Id>1729305719896</Id>
+					<Name><![CDATA[transition26]]></Name>
+					<X>1100</X><Y>950</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<Points>
+						<Point><X>0</X><Y>0</Y></Point>
+						<Point><X>0</X><Y>50</Y></Point>
+					</Points>
+					<IconOffset>10.0</IconOffset>
+					<Properties Source="1729305003157" Target="1729305003157" Trigger="rate">
+						<Action><![CDATA[sendToRandomConnected("感染");]]></Action>
+						<Timeout Class="CodeUnitValue">
+							<Code><![CDATA[1]]></Code>
+							<Unit Class="TimeUnits"><![CDATA[HOUR]]></Unit>
+						</Timeout>
+						<Condition><![CDATA[true]]></Condition>
+						<Rate Class="CodeUnitValue">
+							<Code><![CDATA[main.modelMode == 0 ? 线下传播速率 : 0.0]]></Code>
+							<Unit Class="RateUnits"><![CDATA[PER_DAY]]></Unit>
+						</Rate>
+						<MessageType><![CDATA[Object]]></MessageType>
+						<DefaultTransition>true</DefaultTransition>
+						<FilterType><![CDATA[unconditionally]]></FilterType>
+						<EqualsExpression><![CDATA["text"]]></EqualsExpression>
+						<SatisfiesExpression><![CDATA[true]]></SatisfiesExpression>
+					</Properties>	
+				</StatechartElement>
+				<StatechartElement Class="Transition" ParentState="OfflineInfected" ParentStateId="1729305003157">
+					<Id>1729305730822</Id>
+					<Name><![CDATA[transition27]]></Name>
+					<X>1130</X><Y>950</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<Points>
+						<Point><X>0</X><Y>0</Y></Point>
+						<Point><X>0</X><Y>50</Y></Point>
+					</Points>
+					<IconOffset>10.0</IconOffset>
+					<Properties Source="1729305003157" Target="1729305003157" Trigger="rate">
+						<Action><![CDATA[sendToRandom("感染");]]></Action>
+						<Timeout Class="CodeUnitValue">
+							<Code><![CDATA[1]]></Code>
+							<Unit Class="TimeUnits"><![CDATA[HOUR]]></Unit>
+						</Timeout>
+						<Condition><![CDATA[true]]></Condition>
+						<Rate Class="CodeUnitValue">
+							<Code><![CDATA[main.modelMode == 0 ? 线上传播速率 : 0.0]]></Code>
+							<Unit Class="RateUnits"><![CDATA[PER_DAY]]></Unit>
+						</Rate>
+						<MessageType><![CDATA[Object]]></MessageType>
+						<DefaultTransition>true</DefaultTransition>
+						<FilterType><![CDATA[unconditionally]]></FilterType>
+						<EqualsExpression><![CDATA["text"]]></EqualsExpression>
+						<SatisfiesExpression><![CDATA[true]]></SatisfiesExpression>
+					</Properties>	
+				</StatechartElement>
+				<StatechartElement Class="Transition" ParentState="ROOT_NODE">
+					<Id>1729306080983</Id>
+					<Name><![CDATA[transition20]]></Name>
+					<X>969.6</X><Y>689.2</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<Points>
+						<Point><X>0.39999999999997726</X><Y>0.7999999999999545</Y></Point>
+						<Point><X>100.39999999999998</X><Y>280.79999999999995</Y></Point>
+					</Points>
+					<IconOffset>80.0</IconOffset>
+					<Properties Source="1767358152757" Target="1729305003157" Trigger="rate">
+						<Timeout Class="CodeUnitValue">
+							<Code><![CDATA[潜伏时间]]></Code>
+							<Unit Class="TimeUnits"><![CDATA[HOUR]]></Unit>
+						</Timeout>
+						<Condition><![CDATA[main.modelMode != 1 && main.modelMode != 2 && uniform(0,1) < 0.85]]></Condition>
+						<Rate Class="CodeUnitValue">
+							<Code><![CDATA[0.1]]></Code>
+							<Unit Class="RateUnits"><![CDATA[PER_SECOND]]></Unit>
+						</Rate>
+						<MessageType><![CDATA[Object]]></MessageType>
+						<DefaultTransition>false</DefaultTransition>
+						<FilterType><![CDATA[unconditionally]]></FilterType>
+						<EqualsExpression><![CDATA["text"]]></EqualsExpression>
+						<SatisfiesExpression><![CDATA[true]]></SatisfiesExpression>
+					</Properties>	
+				</StatechartElement>
+				<StatechartElement Class="Transition" ParentState="ROOT_NODE">
+					<Id>1729306510528</Id>
+					<Name><![CDATA[transition28]]></Name>
+					<X>500</X><Y>650</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<Points>
+						<Point><X>0</X><Y>0</Y></Point>
+						<Point><X>0</X><Y>-250</Y></Point>
+						<Point><X>570</X><Y>-250</Y></Point>
+					</Points>
+					<IconOffset>20.0</IconOffset>
+					<Properties Source="1729305003144" Target="1729305003149" Trigger="message">
+						<Timeout Class="CodeUnitValue">
+							<Code><![CDATA[1]]></Code>
+							<Unit Class="TimeUnits"><![CDATA[MINUTE]]></Unit>
+						</Timeout>
+						<Condition><![CDATA[true]]></Condition>
+						<Rate Class="CodeUnitValue">
+							<Code><![CDATA[main.modelMode == 0 ? getInfectionRate_Online() * 0.2 : 0.0]]></Code>
+							<Unit Class="RateUnits"><![CDATA[PER_HOUR]]></Unit>
+						</Rate>
+						<MessageType><![CDATA[Object]]></MessageType>
+						<DefaultTransition>true</DefaultTransition>
+						<FilterType><![CDATA[equalsTo]]></FilterType>
+						<EqualsExpression><![CDATA["线上初始感染"]]></EqualsExpression>
+						<SatisfiesExpression><![CDATA[true]]></SatisfiesExpression>
+					</Properties>	
+				</StatechartElement>
+				<StatechartElement Class="Transition" ParentState="ROOT_NODE">
+					<Id>1729306540112</Id>
+					<Name><![CDATA[transition29]]></Name>
+					<X>500</X><Y>700</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<Points>
+						<Point><X>0</X><Y>0</Y></Point>
+						<Point><X>0</X><Y>280</Y></Point>
+						<Point><X>570</X><Y>280</Y></Point>
+					</Points>
+					<IconOffset>20.0</IconOffset>
+					<Properties Source="1729305003144" Target="1729305003157" Trigger="message">
+						<Timeout Class="CodeUnitValue">
+							<Code><![CDATA[1]]></Code>
+							<Unit Class="TimeUnits"><![CDATA[MINUTE]]></Unit>
+						</Timeout>
+						<Condition><![CDATA[true]]></Condition>
+						<Rate Class="CodeUnitValue">
+							<Code><![CDATA[main.modelMode == 0 ? getInfectionRate_Offline() * 0.2 : 0.0]]></Code>
+							<Unit Class="RateUnits"><![CDATA[PER_HOUR]]></Unit>
+						</Rate>
+						<MessageType><![CDATA[Object]]></MessageType>
+						<DefaultTransition>true</DefaultTransition>
+						<FilterType><![CDATA[equalsTo]]></FilterType>
+						<EqualsExpression><![CDATA["线下初始感染"]]></EqualsExpression>
+						<SatisfiesExpression><![CDATA[true]]></SatisfiesExpression>
+					</Properties>	
+				</StatechartElement>
+				<StatechartElement Class="Transition" ParentState="ROOT_NODE">
+					<Id>1729307570804</Id>
+					<Name><![CDATA[transition30]]></Name>
+					<X>1220</X><Y>950</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<Points>
+						<Point><X>0</X><Y>0</Y></Point>
+						<Point><X>0</X><Y>-360</Y></Point>
+					</Points>
+					<IconOffset>20.0</IconOffset>
+					<Properties Source="1729305003157" Target="1729305003155" Trigger="rate">
+						<Timeout Class="CodeUnitValue">
+							<Code><![CDATA[1]]></Code>
+							<Unit Class="TimeUnits"><![CDATA[MINUTE]]></Unit>
+						</Timeout>
+						<Condition><![CDATA[true]]></Condition>
+						<Rate Class="CodeUnitValue">
+							<Code><![CDATA[getInterventionRate_Online()]]></Code>
+							<Unit Class="RateUnits"><![CDATA[PER_HOUR]]></Unit>
+						</Rate>
+						<MessageType><![CDATA[Object]]></MessageType>
+						<DefaultTransition>true</DefaultTransition>
+						<FilterType><![CDATA[equalsTo]]></FilterType>
+						<EqualsExpression><![CDATA["线上辟谣干预状态"]]></EqualsExpression>
+						<SatisfiesExpression><![CDATA[true]]></SatisfiesExpression>
+					</Properties>	
+				</StatechartElement>
+				<StatechartElement Class="Transition" ParentState="ROOT_NODE">
+					<Id>1729307826799</Id>
+					<Name><![CDATA[transition31]]></Name>
+					<X>1180</X><Y>430</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<Points>
+						<Point><X>0</X><Y>0</Y></Point>
+						<Point><X>0</X><Y>370</Y></Point>
+					</Points>
+					<IconOffset>50.0</IconOffset>
+					<Properties Source="1729305003149" Target="1729305003161" Trigger="rate">
+						<Timeout Class="CodeUnitValue">
+							<Code><![CDATA[1]]></Code>
+							<Unit Class="TimeUnits"><![CDATA[MINUTE]]></Unit>
+						</Timeout>
+						<Condition><![CDATA[true]]></Condition>
+						<Rate Class="CodeUnitValue">
+							<Code><![CDATA[getInterventionRate_Offline()]]></Code>
+							<Unit Class="RateUnits"><![CDATA[PER_HOUR]]></Unit>
+						</Rate>
+						<MessageType><![CDATA[Object]]></MessageType>
+						<DefaultTransition>true</DefaultTransition>
+						<FilterType><![CDATA[equalsTo]]></FilterType>
+						<EqualsExpression><![CDATA["线下辟谣干预状态"]]></EqualsExpression>
+						<SatisfiesExpression><![CDATA[true]]></SatisfiesExpression>
+					</Properties>	
+				</StatechartElement>
+				<StatechartElement Class="Transition" ParentState="ONOfficeRecovered" ParentStateId="1729305003155">
+					<Id>1729308001080</Id>
+					<Name><![CDATA[transition32]]></Name>
+					<X>1130</X><Y>540</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<Points>
+						<Point><X>0</X><Y>0</Y></Point>
+						<Point><X>0</X><Y>50</Y></Point>
+					</Points>
+					<IconOffset>10.0</IconOffset>
+					<Properties Source="1729305003155" Target="1729305003155" Trigger="rate">
+						<Action><![CDATA[sendToRandomConnected("线下辟谣干预状态");]]></Action>
+						<Timeout Class="CodeUnitValue">
+							<Code><![CDATA[1]]></Code>
+							<Unit Class="TimeUnits"><![CDATA[HOUR]]></Unit>
+						</Timeout>
+						<Condition><![CDATA[true]]></Condition>
+						<Rate Class="CodeUnitValue">
+							<Code><![CDATA[线上辟谣概率]]></Code>
+							<Unit Class="RateUnits"><![CDATA[PER_DAY]]></Unit>
+						</Rate>
+						<MessageType><![CDATA[Object]]></MessageType>
+						<DefaultTransition>true</DefaultTransition>
+						<FilterType><![CDATA[unconditionally]]></FilterType>
+						<EqualsExpression><![CDATA["text"]]></EqualsExpression>
+						<SatisfiesExpression><![CDATA[true]]></SatisfiesExpression>
+					</Properties>	
+				</StatechartElement>
+				<StatechartElement Class="Transition" ParentState="ONOfficeRecovered" ParentStateId="1729305003155">
+					<Id>1729308034846</Id>
+					<Name><![CDATA[transition33]]></Name>
+					<X>1100</X><Y>540</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<Points>
+						<Point><X>0</X><Y>0</Y></Point>
+						<Point><X>0</X><Y>50</Y></Point>
+					</Points>
+					<IconOffset>10.0</IconOffset>
+					<Properties Source="1729305003155" Target="1729305003155" Trigger="rate">
+						<Action><![CDATA[sendToRandomConnected("线上辟谣干预状态");]]></Action>
+						<Timeout Class="CodeUnitValue">
+							<Code><![CDATA[1]]></Code>
+							<Unit Class="TimeUnits"><![CDATA[HOUR]]></Unit>
+						</Timeout>
+						<Condition><![CDATA[true]]></Condition>
+						<Rate Class="CodeUnitValue">
+							<Code><![CDATA[线下辟谣概率]]></Code>
+							<Unit Class="RateUnits"><![CDATA[PER_DAY]]></Unit>
+						</Rate>
+						<MessageType><![CDATA[Object]]></MessageType>
+						<DefaultTransition>true</DefaultTransition>
+						<FilterType><![CDATA[unconditionally]]></FilterType>
+						<EqualsExpression><![CDATA["text"]]></EqualsExpression>
+						<SatisfiesExpression><![CDATA[true]]></SatisfiesExpression>
+					</Properties>	
+				</StatechartElement>
+				<StatechartElement Class="Transition" ParentState="OFFOfficeRecovered" ParentStateId="1729305003161">
+					<Id>1729308083538</Id>
+					<Name><![CDATA[transition34]]></Name>
+					<X>1130</X><Y>800</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<Points>
+						<Point><X>0</X><Y>0</Y></Point>
+						<Point><X>0</X><Y>50</Y></Point>
+					</Points>
+					<IconOffset>10.0</IconOffset>
+					<Properties Source="1729305003161" Target="1729305003161" Trigger="rate">
+						<Action><![CDATA[sendToRandomConnected("线下辟谣干预状态");]]></Action>
+						<Timeout Class="CodeUnitValue">
+							<Code><![CDATA[1]]></Code>
+							<Unit Class="TimeUnits"><![CDATA[HOUR]]></Unit>
+						</Timeout>
+						<Condition><![CDATA[true]]></Condition>
+						<Rate Class="CodeUnitValue">
+							<Code><![CDATA[线上辟谣概率]]></Code>
+							<Unit Class="RateUnits"><![CDATA[PER_DAY]]></Unit>
+						</Rate>
+						<MessageType><![CDATA[Object]]></MessageType>
+						<DefaultTransition>true</DefaultTransition>
+						<FilterType><![CDATA[unconditionally]]></FilterType>
+						<EqualsExpression><![CDATA["text"]]></EqualsExpression>
+						<SatisfiesExpression><![CDATA[true]]></SatisfiesExpression>
+					</Properties>	
+				</StatechartElement>
+				<StatechartElement Class="Transition" ParentState="OFFOfficeRecovered" ParentStateId="1729305003161">
+					<Id>1729308083540</Id>
+					<Name><![CDATA[transition35]]></Name>
+					<X>1100</X><Y>800</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<Points>
+						<Point><X>0</X><Y>0</Y></Point>
+						<Point><X>0</X><Y>50</Y></Point>
+					</Points>
+					<IconOffset>10.0</IconOffset>
+					<Properties Source="1729305003161" Target="1729305003161" Trigger="rate">
+						<Action><![CDATA[sendToRandomConnected("线上辟谣干预状态");]]></Action>
+						<Timeout Class="CodeUnitValue">
+							<Code><![CDATA[1]]></Code>
+							<Unit Class="TimeUnits"><![CDATA[HOUR]]></Unit>
+						</Timeout>
+						<Condition><![CDATA[true]]></Condition>
+						<Rate Class="CodeUnitValue">
+							<Code><![CDATA[线下辟谣概率]]></Code>
+							<Unit Class="RateUnits"><![CDATA[PER_DAY]]></Unit>
+						</Rate>
+						<MessageType><![CDATA[Object]]></MessageType>
+						<DefaultTransition>true</DefaultTransition>
+						<FilterType><![CDATA[unconditionally]]></FilterType>
+						<EqualsExpression><![CDATA["text"]]></EqualsExpression>
+						<SatisfiesExpression><![CDATA[true]]></SatisfiesExpression>
+					</Properties>	
+				</StatechartElement>
+				<StatechartElement Class="Transition" ParentState="ROOT_NODE">
+					<Id>1767357495860</Id>
+					<Name><![CDATA[transition18]]></Name>
+					<X>1260</X><Y>970</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<Points>
+						<Point><X>0</X><Y>0</Y></Point>
+						<Point><X>300</X><Y>0</Y></Point>
+						<Point><X>300</X><Y>-540</Y></Point>
+					</Points>
+					<IconOffset>20.0</IconOffset>
+					<Properties Source="1729305003157" Target="1729305003151" Trigger="timeout">
+						<Timeout Class="CodeUnitValue">
+							<Code><![CDATA[uniform(遗忘时间 * 0.5, 遗忘时间 * 1.5)]]></Code>
+							<Unit Class="TimeUnits"><![CDATA[HOUR]]></Unit>
+						</Timeout>
+						<Condition><![CDATA[true]]></Condition>
+						<Rate Class="CodeUnitValue">
+							<Code><![CDATA[1]]></Code>
+							<Unit Class="RateUnits"><![CDATA[PER_HOUR]]></Unit>
+						</Rate>
+						<MessageType><![CDATA[Object]]></MessageType>
+						<DefaultTransition>true</DefaultTransition>
+						<FilterType><![CDATA[unconditionally]]></FilterType>
+						<EqualsExpression><![CDATA["text"]]></EqualsExpression>
+						<SatisfiesExpression><![CDATA[true]]></SatisfiesExpression>
+					</Properties>	
+				</StatechartElement>
+				<StatechartElement Class="Transition" ParentState="ROOT_NODE">
+					<Id>1767357507874</Id>
+					<Name><![CDATA[transition19]]></Name>
+					<X>1590</X><Y>430</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<Points>
+						<Point><X>0</X><Y>0</Y></Point>
+						<Point><X>0</X><Y>560</Y></Point>
+						<Point><X>-330</X><Y>560</Y></Point>
+					</Points>
+					<IconOffset>20.0</IconOffset>
+					<Properties Source="1729305003151" Target="1729305003157" Trigger="rate">
+						<Timeout Class="CodeUnitValue">
+							<Code><![CDATA[1000]]></Code>
+							<Unit Class="TimeUnits"><![CDATA[DAY]]></Unit>
+						</Timeout>
+						<Condition><![CDATA[true]]></Condition>
+						<Rate Class="CodeUnitValue">
+							<Code><![CDATA[main.modelMode == 0 ? getInfectionRate_Online() * 0.001 : 0.0]]></Code>
+							<Unit Class="RateUnits"><![CDATA[PER_HOUR]]></Unit>
+						</Rate>
+						<MessageType><![CDATA[Object]]></MessageType>
+						<DefaultTransition>true</DefaultTransition>
+						<FilterType><![CDATA[unconditionally]]></FilterType>
+						<EqualsExpression><![CDATA["text"]]></EqualsExpression>
+						<SatisfiesExpression><![CDATA[true]]></SatisfiesExpression>
+					</Properties>	
+				</StatechartElement>
+				<StatechartElement Class="Transition" ParentState="ROOT_NODE">
+					<Id>1767358719682</Id>
+					<Name><![CDATA[transition1]]></Name>
+					<X>890</X><Y>680</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<Points>
+						<Point><X>0</X><Y>0</Y></Point>
+						<Point><X>68</X><Y>0</Y></Point>
+					</Points>
+					<IconOffset>20.0</IconOffset>
+					<Properties Source="1729305003147" Target="1767358152757" Trigger="timeout">
+						<Timeout Class="CodeUnitValue">
+							<Code><![CDATA[uniform(潜伏时间 * 0.5, 潜伏时间 * 1.5)]]></Code>
+							<Unit Class="TimeUnits"><![CDATA[HOUR]]></Unit>
+						</Timeout>
+						<Condition><![CDATA[true]]></Condition>
+						<Rate Class="CodeUnitValue">
+							<Code><![CDATA[1]]></Code>
+							<Unit Class="RateUnits"><![CDATA[PER_HOUR]]></Unit>
+						</Rate>
+						<MessageType><![CDATA[Object]]></MessageType>
+						<DefaultTransition>true</DefaultTransition>
+						<FilterType><![CDATA[unconditionally]]></FilterType>
+						<EqualsExpression><![CDATA["text"]]></EqualsExpression>
+						<SatisfiesExpression><![CDATA[true]]></SatisfiesExpression>
+					</Properties>	
+				</StatechartElement>
+				<StatechartElement Class="Transition" ParentState="ROOT_NODE">
+					<Id>1772690018141</Id>
+					<Name><![CDATA[transition]]></Name>
+					<X>1520</X><Y>380</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<Points>
+						<Point><X>0</X><Y>0</Y></Point>
+						<Point><X>0</X><Y>-80</Y></Point>
+						<Point><X>-1060</X><Y>-80</Y></Point>
+						<Point><X>-1062</X><Y>270</Y></Point>
+					</Points>
+					<IconOffset>20.0</IconOffset>
+					<Properties Source="1729305003151" Target="1729305003144" Trigger="timeout">
+						<Timeout Class="CodeUnitValue">
+							<Code><![CDATA[uniform(150, 200)]]></Code>
+							<Unit Class="TimeUnits"><![CDATA[HOUR]]></Unit>
+						</Timeout>
+						<Condition><![CDATA[true]]></Condition>
+						<Rate Class="CodeUnitValue">
+							<Code><![CDATA[1]]></Code>
+							<Unit Class="RateUnits"><![CDATA[PER_HOUR]]></Unit>
+						</Rate>
+						<MessageType><![CDATA[Object]]></MessageType>
+						<DefaultTransition>true</DefaultTransition>
+						<FilterType><![CDATA[unconditionally]]></FilterType>
+						<EqualsExpression><![CDATA["text"]]></EqualsExpression>
+						<SatisfiesExpression><![CDATA[true]]></SatisfiesExpression>
+					</Properties>	
+				</StatechartElement>
+			</StatechartElements>
+			<Functions>
+				<Function AccessType="default" StaticFunction="false">
+					<ReturnModificator>RETURNS_VALUE</ReturnModificator>
+					<ReturnType><![CDATA[double]]></ReturnType>
+					<Id>1772689118858</Id>
+					<Name><![CDATA[getInfectionRate_Online]]></Name>
+					<X>1180</X><Y>40</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Body><![CDATA[double baselineMultiplier = 1.0;
+if (main.modelMode > 0
+    && (main.enableOnlineIntervention || main.enableOfflineIntervention)
+    && time() >= main.interventionStartTime) {
+    baselineMultiplier = Math.max(0.05, 1.0 - (main.线上辟谣影响系数 + main.线下辟谣影响系数));
+}
+
+if (main.modelMode == 1) {
+    double n = Math.max(1, main.people.size());
+    double infected = main.people.OnlineInfected() + main.people.OfflineInfected();
+    return main.线上传播速率 * baselineMultiplier * infected / n;
+}
+
+double k_on = this.onlineConnections.getConnections().size();
+if (k_on == 0) return 0.0;
+
+// 统计线上邻居中处于 I1 (OnlineInfected) 状态的数量
+long countI1 = this.onlineConnections.getConnections().stream()
+    .filter(a -> a.inState(Person.OnlineInfected)).count();
+
+return main.线上传播速率 * baselineMultiplier * ((double)countI1 / k_on);]]></Body>
+				</Function>
+				<Function AccessType="default" StaticFunction="false">
+					<ReturnModificator>RETURNS_VALUE</ReturnModificator>
+					<ReturnType><![CDATA[double]]></ReturnType>
+					<Id>1772689237896</Id>
+					<Name><![CDATA[getInfectionRate_Offline]]></Name>
+					<X>1180</X><Y>80</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Body><![CDATA[if (main.modelMode == 1 || main.modelMode == 2) return 0.0;
+
+double baselineMultiplier = 1.0;
+if (main.modelMode > 0
+    && (main.enableOnlineIntervention || main.enableOfflineIntervention)
+    && time() >= main.interventionStartTime) {
+    baselineMultiplier = Math.max(0.05, 1.0 - (main.线上辟谣影响系数 + main.线下辟谣影响系数));
+}
+
+double k_off = this.offlineConnections.getConnections().size();
+if (k_off == 0) return 0.0;
+
+// 统计线下邻居中处于 I2 (OfflineInfected) 状态的数量
+long countI2 = this.offlineConnections.getConnections().stream()
+    .filter(a -> a.inState(Person.OfflineInfected)).count();
+
+return main.线下传播速率 * baselineMultiplier * ((double)countI2 / k_off);]]></Body>
+				</Function>
+				<Function AccessType="default" StaticFunction="false">
+					<ReturnModificator>RETURNS_VALUE</ReturnModificator>
+					<ReturnType><![CDATA[double]]></ReturnType>
+					<Id>1772689469236</Id>
+					<Name><![CDATA[getInterventionRate_Online]]></Name>
+					<X>1380</X><Y>40</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Body><![CDATA[if (main.modelMode > 0) return 0.0;
+
+boolean autoOnline = main.enableOnlineIntervention && time() >= main.interventionStartTime;
+if (!(main.isOnlineIntervention || autoOnline)) return 0.0;
+
+double k_on = this.onlineConnections.getConnections().size();
+double networkEffect = 0.0;
+
+if (k_on > 0) {
+    long countG1 = this.onlineConnections.getConnections().stream()
+        .filter(a -> a.inState(Person.ONOfficeRecovered)).count();
+    networkEffect = (double)countG1 / k_on;
+}
+
+// 0.05 代表官方媒体全网弹窗的“全局广播穿透力”
+// networkEffect 代表网民在小世界网络中转发辟谣的“局域扩散力”
+return main.线上辟谣影响系数 * (0.05 + networkEffect);]]></Body>
+				</Function>
+				<Function AccessType="default" StaticFunction="false">
+					<ReturnModificator>RETURNS_VALUE</ReturnModificator>
+					<ReturnType><![CDATA[double]]></ReturnType>
+					<Id>1772689525480</Id>
+					<Name><![CDATA[getInterventionRate_Offline]]></Name>
+					<X>1380</X><Y>80</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<Body><![CDATA[if (main.modelMode > 0) return 0.0;
+
+boolean autoOffline = main.enableOfflineIntervention && time() >= main.interventionStartTime;
+if (!(main.isOfflineIntervention || autoOffline)) return 0.0;
+
+double k_off = this.offlineConnections.getConnections().size();
+double networkEffect = 0.0;
+
+if (k_off > 0) {
+    long countG2 = this.offlineConnections.getConnections().stream()
+        .filter(a -> a.inState(Person.OFFOfficeRecovered)).count();
+    networkEffect = (double)countG2 / k_off;
+}
+
+// 0.05 代表社区大喇叭/通告的“全局广播穿透力”
+// networkEffect 代表街坊邻居口耳相传的“局域扩散力”
+return main.线下辟谣影响系数 * (0.05 + networkEffect);]]></Body>
+				</Function>
+			</Functions>
+			<AgentLinks>
+				<AgentLink>
+					<Id>1654097144168</Id>
+					<Name><![CDATA[connections]]></Name>
+					<X>50</X><Y>-50</Y>
+					<Label><X>15</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<OnReceive><![CDATA[if(msg.equals("感染")) {
+    this.Infection += 0.05; 
+    // 将 0.001 改为 0.05 (增强50倍)
+    // 意味着大约收到 10-15 条消息就会被感染，而不是几百条
+}]]></OnReceive>
+					<HandleReceiveInConnections>false</HandleReceiveInConnections>
+					<AgentLinkType>COLLECTION_OF_LINKS</AgentLinkType>
+					<AgentLinkBidirectional>true</AgentLinkBidirectional>
+					<MessageType><![CDATA[Object]]></MessageType>
+					<StatechartReference>
+						<PackageName><![CDATA[谣言传播模型]]></PackageName>
+						<ClassName><![CDATA[Person]]></ClassName>
+						<ItemName><![CDATA[statechart]]></ItemName>
+					</StatechartReference>
+					<LineStyle>SOLID</LineStyle>
+					<LineWidth>1</LineWidth>
+					<LineColor>-16777216</LineColor>
+					<LineZOrder>UNDER_AGENTS</LineZOrder>
+					<LineArrow>NONE</LineArrow>
+					<LineArrowPosition>END</LineArrowPosition>
+				</AgentLink>
+				<AgentLink>
+					<Id>1772688302294</Id>
+					<Name><![CDATA[offlineConnections]]></Name>
+					<X>840</X><Y>40</Y>
+					<Label><X>15</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<HandleReceiveInConnections>false</HandleReceiveInConnections>
+					<AgentLinkType>COLLECTION_OF_LINKS</AgentLinkType>
+					<AgentReferenceId>1654097144173</AgentReferenceId>
+					<AgentLinkBidirectional>false</AgentLinkBidirectional>
+					<MessageType><![CDATA[Object]]></MessageType>
+					<LineStyle>SOLID</LineStyle>
+					<LineWidth>1</LineWidth>
+					<LineColor>-16777216</LineColor>
+					<LineZOrder>UNDER_AGENTS</LineZOrder>
+					<LineArrow>NONE</LineArrow>
+					<LineArrowPosition>END</LineArrowPosition>
+				</AgentLink>
+				<AgentLink>
+					<Id>1772688316289</Id>
+					<Name><![CDATA[onlineConnections]]></Name>
+					<X>1020</X><Y>40</Y>
+					<Label><X>15</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<HandleReceiveInConnections>false</HandleReceiveInConnections>
+					<AgentLinkType>COLLECTION_OF_LINKS</AgentLinkType>
+					<AgentReferenceId>1654097144173</AgentReferenceId>
+					<AgentLinkBidirectional>false</AgentLinkBidirectional>
+					<MessageType><![CDATA[Object]]></MessageType>
+					<LineStyle>SOLID</LineStyle>
+					<LineWidth>1</LineWidth>
+					<LineColor>-16777216</LineColor>
+					<LineZOrder>UNDER_AGENTS</LineZOrder>
+					<LineArrow>NONE</LineArrow>
+					<LineArrowPosition>END</LineArrowPosition>
+				</AgentLink>
+			</AgentLinks>
+
+			<ContainerLinks>
+				<ContainerLink>
+					<Id>1654097144231</Id>
+					<Name><![CDATA[main]]></Name>
+					<X>50</X><Y>-100</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>false</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>true</ShowLabel>
+					<ActiveObjectClass>
+						<PackageName><![CDATA[谣言传播模型]]></PackageName>
+						<ClassName><![CDATA[Main]]></ClassName>
+					</ActiveObjectClass>
+				</ContainerLink>
+			</ContainerLinks>
+
+			<Presentation>
+				<Level>
+					<Id>1654097144172</Id>
+					<Name><![CDATA[level]]></Name>
+					<X>0</X><Y>0</Y>
+					<Label><X>10</X><Y>0</Y></Label>
+					<PublicFlag>true</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<DrawMode>SHAPE_DRAW_2D3D</DrawMode>
+					<Z>0</Z>
+					<LevelVisibility>DIM_NON_CURRENT</LevelVisibility>
+
+			<Presentation>
+				<Oval>
+					<Id>1654097174815</Id>
+					<Name><![CDATA[oval]]></Name>
+					<X>0</X><Y>0</Y>
+					<Label><X>0</X><Y>0</Y></Label>
+					<PublicFlag>true</PublicFlag>
+					<PresentationFlag>true</PresentationFlag>
+					<ShowLabel>false</ShowLabel>
+					<DrawMode>SHAPE_DRAW_2D3D</DrawMode>
+					<EmbeddedIcon>false</EmbeddedIcon>
+					<Z>0</Z>
+					<ZHeight>10</ZHeight>
+					<LineWidth>1</LineWidth>
+					<LineColor/>
+					<LineMaterial>null</LineMaterial>
+					<LineStyle>SOLID</LineStyle>
+					<RadiusX>10</RadiusX>
+					<RadiusY>40</RadiusY>
+					<Rotation>0.0</Rotation>
+					<FillColor>-65536</FillColor>
+					<FillMaterial>null</FillMaterial>
+				</Oval>
+			</Presentation>
+
+				</Level>
+			</Presentation>
+
+		</ActiveObjectClass>
+	</ActiveObjectClasses>
+	<DifferentialEquationsMethod>EULER</DifferentialEquationsMethod>
+	<MixedEquationsMethod>RK45_NEWTON</MixedEquationsMethod>
+	<AlgebraicEquationsMethod>MODIFIED_NEWTON</AlgebraicEquationsMethod>
+	<AbsoluteAccuracy>1.0E-5</AbsoluteAccuracy>
+	<FixedTimeStep>0.001</FixedTimeStep>
+	<RelativeAccuracy>1.0E-5</RelativeAccuracy>
+	<TimeAccuracy>1.0E-5</TimeAccuracy>
+	<InspectionWindowColorTheme>DEFAULT</InspectionWindowColorTheme>
+	<Frame>
+		<Id>1654094799999</Id>
+		<Width>2660</Width>
+		<Height>1220</Height>
+	</Frame>
+	<Database>
+		<Id>1654094799995</Id>
+		<Logging>false</Logging>
+		<AutoExport>false</AutoExport>
+		<ShutdownCompact>false</ShutdownCompact>
+		<ImportSettings>
+		</ImportSettings>
+		<ExportSettings>
+		</ExportSettings>
+	</Database>
+
+	<RunConfiguration ActiveObjectClassId="1654094819749">
+		<Id>1654094819760</Id>
+		<Name><![CDATA[RunConfiguration]]></Name>
+		<MaximumMemory>512</MaximumMemory>
+		<ModelTimeProperties>
+			<StopOption><![CDATA[Stop at specified time]]></StopOption>
+			<InitialDate><![CDATA[1654041600000]]></InitialDate>	
+			<InitialTime><![CDATA[0.0]]></InitialTime>	
+			<FinalDate><![CDATA[1656633600000]]></FinalDate>	
+			<FinalTime><![CDATA[100.0]]></FinalTime>	
+		</ModelTimeProperties>
+		<AnimationProperties>
+			<StopNever>true</StopNever>
+			<ExecutionMode>realTimeScaled</ExecutionMode>
+			<RealTimeScale>1.0</RealTimeScale>
+			<EnableZoomAndPanning>true</EnableZoomAndPanning>
+			<EnableDeveloperPanel>false</EnableDeveloperPanel>
+			<ShowDeveloperPanelOnStart>false</ShowDeveloperPanelOnStart>
+		</AnimationProperties>
+		<Inputs>		
+		</Inputs>
+		<Outputs>
+		</Outputs>
+	</RunConfiguration>
+	<Experiments>
+		<!--   =========   Simulation Experiment   ========  -->
+		<SimulationExperiment ActiveObjectClassId="1654094819749">
+			<Id>1654094819758</Id>
+			<Name><![CDATA[Simulation]]></Name>
+			<CommandLineArguments><![CDATA[]]></CommandLineArguments>
+			<MaximumMemory>56384</MaximumMemory>
+			<RandomNumberGenerationType>fixedSeed</RandomNumberGenerationType>
+			<CustomGeneratorCode>new Random()</CustomGeneratorCode>
+			<SeedValue>1</SeedValue>
+			<SelectionModeForSimultaneousEvents>LIFO</SelectionModeForSimultaneousEvents>
+			<VmArgs><![CDATA[]]></VmArgs>
+			<LoadRootFromSnapshot>false</LoadRootFromSnapshot>
+
+
+			<Parameters>
+				<Parameter>
+					<ParameterName><![CDATA[modelMode]]></ParameterName>
+				</Parameter>
+				<Parameter>
+					<ParameterName><![CDATA[enableCsvExport]]></ParameterName>
+				</Parameter>
+				<Parameter>
+					<ParameterName><![CDATA[seedId]]></ParameterName>
+				</Parameter>
+				<Parameter>
+					<ParameterName><![CDATA[interventionStartTime]]></ParameterName>
+				</Parameter>
+				<Parameter>
+					<ParameterName><![CDATA[enableOnlineIntervention]]></ParameterName>
+				</Parameter>
+				<Parameter>
+					<ParameterName><![CDATA[enableOfflineIntervention]]></ParameterName>
+				</Parameter>
+				<Parameter>
+					<ParameterName><![CDATA[kOffline]]></ParameterName>
+				</Parameter>
+				<Parameter>
+					<ParameterName><![CDATA[kOnline]]></ParameterName>
+				</Parameter>
+				<Parameter>
+					<ParameterName><![CDATA[pRewire]]></ParameterName>
+				</Parameter>
+				<Parameter>
+					<ParameterName><![CDATA[initialOnlineSeeds]]></ParameterName>
+				</Parameter>
+				<Parameter>
+					<ParameterName><![CDATA[initialOfflineSeeds]]></ParameterName>
+				</Parameter>
+				<Parameter>
+					<ParameterName><![CDATA[线上辟谣影响系数]]></ParameterName>
+				</Parameter>
+				<Parameter>
+					<ParameterName><![CDATA[线下辟谣影响系数]]></ParameterName>
+				</Parameter>
+				<Parameter>
+					<ParameterName><![CDATA[直接免疫概率]]></ParameterName>
+				</Parameter>
+				<Parameter>
+					<ParameterName><![CDATA[线下传播速率]]></ParameterName>
+				</Parameter>
+				<Parameter>
+					<ParameterName><![CDATA[线上传播速率]]></ParameterName>
+				</Parameter>
+				<Parameter>
+					<ParameterName><![CDATA[免疫时间]]></ParameterName>
+				</Parameter>
+				<Parameter>
+					<ParameterName><![CDATA[线上辟谣概率]]></ParameterName>
+				</Parameter>
+				<Parameter>
+					<ParameterName><![CDATA[线下辟谣概率]]></ParameterName>
+				</Parameter>
+				<Parameter>
+					<ParameterName><![CDATA[辟谣者遗忘时间]]></ParameterName>
+				</Parameter>
+				<Parameter>
+					<ParameterName><![CDATA[遗忘时间]]></ParameterName>
+				</Parameter>
+				<Parameter>
+					<ParameterName><![CDATA[潜伏时间]]></ParameterName>
+				</Parameter>
+			</Parameters>
+			<PresentationProperties>
+				<EnableZoomAndPanning>true</EnableZoomAndPanning>
+				<ExecutionMode><![CDATA[realTimeScaled]]></ExecutionMode>
+				<Title><![CDATA[情绪控制 : Simulation]]></Title>
+				<EnableDeveloperPanel>true</EnableDeveloperPanel>
+				<ShowDeveloperPanelOnStart>false</ShowDeveloperPanelOnStart>
+				<RealTimeScale>1.0</RealTimeScale>
+			</PresentationProperties>
+			<ModelTimeProperties>
+				<StopOption><![CDATA[Stop at specified time]]></StopOption>
+				<InitialDate><![CDATA[1654041600000]]></InitialDate>
+				<InitialTime><![CDATA[0.0]]></InitialTime>
+				<FinalDate><![CDATA[1654689600000]]></FinalDate>
+				<FinalTime><![CDATA[180.0]]></FinalTime>
+			</ModelTimeProperties>
+			<BypassInitialScreen>true</BypassInitialScreen>
+		</SimulationExperiment>	
+	</Experiments>
+    <RequiredLibraryReference>
+		<LibraryName><![CDATA[com.anylogic.libraries.modules.markup_descriptors]]></LibraryName>
+		<VersionMajor>1</VersionMajor>
+		<VersionMinor>0</VersionMinor>
+		<VersionBuild>0</VersionBuild>
+    </RequiredLibraryReference>
+    <RequiredLibraryReference>
+		<LibraryName><![CDATA[com.anylogic.libraries.processmodeling]]></LibraryName>
+		<VersionMajor>8</VersionMajor>
+		<VersionMinor>0</VersionMinor>
+		<VersionBuild>5</VersionBuild>
+    </RequiredLibraryReference>
+</Model>
+<ConvertersApplied>
+	<Uuid>9f7858c9-b2c8-4ead-9244-fd08833f642b</Uuid>
+	<Uuid>404652e6-561a-404c-aab2-ab7415f40ef5</Uuid>
+	<Uuid>6fd6cd57-6dfe-4fc6-be0b-c74065351957</Uuid>
+	<Uuid>3325dc48-3ad4-41e3-836f-dfd0e98fe1ed</Uuid>
+	<Uuid>bb27038a-0f3a-48bb-b235-4a44066a14aa</Uuid>
+	<Uuid>3f69ef3d-706e-41a6-8af0-11658c5eef68</Uuid>
+	<Uuid>3f6fe405-e047-4304-91d6-6eee206d1106</Uuid>
+	<Uuid>820d2b51-5b4a-48e7-b0b6-e46418e3c0f2</Uuid>
+	<Uuid>630818fa-8975-4b70-976f-03180dce01db</Uuid>
+	<Uuid>7c7e471c-004e-495e-a4ad-d840620ab38e</Uuid>
+	<Uuid>3e38ff63-1f70-4ec0-b42c-e879b146785d</Uuid>
+	<Uuid>b1eb86e4-14b3-405c-8257-56b80f1b485d</Uuid>
+	<Uuid>d55f9fb6-86bb-45ea-9db1-79cecfa0ce91</Uuid>
+	<Uuid>ab77aafd-8f02-4354-b789-928d45b1f73c</Uuid>
+	<Uuid>e4f14fd7-1c4a-42e9-b91d-db2415f475db</Uuid>
+	<Uuid>6d208120-6c7a-45a6-b411-402f18890d9b</Uuid>
+	<Uuid>1816cdd0-177c-4973-9e88-dd8b95318556</Uuid>
+	<Uuid>5c23f62f-06dc-46ad-8ead-688ec434e3e5</Uuid>
+	<Uuid>5c7d7990-3f35-41eb-ae16-d0c16098acc6</Uuid>
+	<Uuid>02a16c52-a834-4f30-b6af-a6aee51a294e</Uuid>
+	<Uuid>f0988929-2718-4984-a1b6-c1f2ce152f1f</Uuid>
+	<Uuid>1c9d9cfe-ea2b-43f9-8f62-dc31d8ed3ae1</Uuid>
+	<Uuid>34cb742a-8ba4-47a7-87e6-f2685fe69e97</Uuid>
+	<Uuid>4fe10751-c399-4752-94b7-30113ad45070</Uuid>
+	<Uuid>c13fe5ac-6466-446e-886a-12df1431b1eb</Uuid>
+	<Uuid>714f9ca2-426e-4bff-8569-2d18f58fdcf8</Uuid>
+	<Uuid>045aeb5f-1087-4ac7-9702-a49404e7f7e8</Uuid>
+	<Uuid>840e9a0a-de98-4b7d-a172-f9bbda2d6b98</Uuid>
+	<Uuid>e342358b-75ed-4812-9376-6043fb6cb473</Uuid>
+	<Uuid>f3d5ccdc-1bb3-466f-871d-f6b92a26cbb4</Uuid>
+	<Uuid>59acb6fb-561c-4038-b722-a596a748b3c7</Uuid>
+	<Uuid>be7e6726-05c0-4228-821d-a8df91aeb5bc</Uuid>
+	<Uuid>df4a6a60-9ce8-4c6c-91c0-ad5a5d732259</Uuid>
+	<Uuid>47491eb9-4606-42bd-8399-125a2b95fded</Uuid>
+	<Uuid>9b2d1306-5d19-439a-8f2c-b144dd7e22fa</Uuid>
+	<Uuid>ef421152-8732-4f97-9acb-c8e9a6890d5e</Uuid>
+	<Uuid>d48f8080-25b1-44f5-8322-7bf2712ff974</Uuid>
+	<Uuid>6c4de826-daad-4cd4-b703-51dfe803e822</Uuid>
+	<Uuid>01af22d6-6889-4e98-a3df-e6eddc40fc92</Uuid>
+	<Uuid>ea3b3dbe-cca2-4bde-957b-feaef7e18789</Uuid>
+	<Uuid>e737c8c6-b526-4f88-b89e-554e205b0614</Uuid>
+	<Uuid>efd24e87-d7f7-425f-9cb0-3ee17c7b2116</Uuid>
+	<Uuid>a62607e6-047e-4910-a1ec-5426bf9283b5</Uuid>
+	<Uuid>64dceb5b-de05-47c7-8e40-e9b293e80d75</Uuid>
+	<Uuid>8d51c652-6aee-4de8-ba03-47b289a13ec5</Uuid>
+	<Uuid>51d7b5ce-5664-4750-b1a0-fabcdc31e49a</Uuid>
+	<Uuid>6522e3af-aa9e-421c-b667-e11db73cd8ca</Uuid>
+	<Uuid>9ac073a0-7abf-4dff-826f-9c44d4780590</Uuid>
+	<Uuid>2da9c21c-adc7-405a-a36e-46fbd9dfcd42</Uuid>
+	<Uuid>fe4d1053-9c84-4221-bac7-cb489a7064ff</Uuid>
+	<Uuid>1f005f88-e6d7-4bdc-81fa-3acf4c89cf64</Uuid>
+	<Uuid>42dc5a7c-d7b1-4653-92b9-9359b46cc2d4</Uuid>
+	<Uuid>e25721a9-34f9-479c-a4c3-31f5ec9e117d</Uuid>
+	<Uuid>506d1de3-06df-4131-9e88-e43f1768e3d8</Uuid>
+	<Uuid>e6625695-25a2-43d0-9056-1e9a1a594b1e</Uuid>
+	<Uuid>91990287-4edf-4e38-aa6c-66d0e906807b</Uuid>
+	<Uuid>2216cdd0-177c-5678-9e88-dd8b95312234</Uuid>
+	<Uuid>1737c8c6-b526-4dd8-589e-ee4e205b06f4</Uuid>
+	<Uuid>6a43bef6-8b70-4253-a828-82c3ab399655</Uuid>
+	<Uuid>0a27038a-0f3a-48bb-b235-4a44066a1402</Uuid>
+	<Uuid>0a9ec2c3-5e18-4c0a-a183-fd86d9d9a08b</Uuid>
+	<Uuid>2216cdd0-177c-5678-9e88-dd8b95313334</Uuid>
+</ConvertersApplied>
+</AnyLogicWorkspace>

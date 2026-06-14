@@ -1,0 +1,4 @@
+runId,time,S,E,I1,I2,G1,G2,R,modelMode,interventionStartTime,enableOnlineIntervention,enableOfflineIntervention,kOffline,kOnline,pRewire,initialOnlineSeeds,initialOfflineSeeds,seedId
+M1_T30_onfalse_offfalse_seed2_kon10_koff0_rewire0p0_or35p0_fr0p0_gOn0p05_gOff0p15_1781323158864,0.0,1000,0,0,0,0,0,0,1,30.0,false,false,0,10,0.0,20,0,2
+M1_T30_onfalse_offfalse_seed2_kon10_koff0_rewire0p0_or35p0_fr0p0_gOn0p05_gOff0p15_1781323158864,1.0,519,461,20,0,0,0,0,1,30.0,false,false,0,10,0.0,20,0,2
+M1_T30_onfalse_offfalse_seed2_kon10_koff0_rewire0p0_or35p0_fr0p0_gOn0p05_gOff0p15_1781323158864,2.0,264,589,147,0,0,0,0,1,30.0,false,false,0,10,0.0,20,0,2

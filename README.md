@@ -1,0 +1,54 @@
+# Coupled Online-Offline SEIRG Rumor-Refutation Simulation Package
+
+This repository contains the reproducibility package for a manuscript on coupled online-offline rumor propagation and rumor-refutation intervention simulations. The package supports computational social systems modeling, agent-based simulation, and model-internal comparison. It does not provide causal evidence about real-world policy effectiveness.
+
+Reviewer-access repository URL: `https://github.com/wangzai1112/tcss-seirg-rumor-refutation-reviewer-package`.
+
+## Repository Structure
+
+- `data/raw/anylogic_outputs/`: original AnyLogic CSV exports used to rebuild the run-level summary.
+- `data/processed/simulation/`: cleaned simulation summaries, paper tables, run-quality audits, and scenario summaries.
+- `data/processed/external_validation/`: CHECKED and OxCGRT processing outputs, source snapshots, and external plausibility-check summaries. The directory name is retained for traceability with earlier drafts.
+- `data/external/`: reserved for third-party download notes when source files cannot be redistributed.
+- `scripts/preprocessing/`: data cleaning and normalization scripts.
+- `scripts/analysis/`: statistical tests, sensitivity analysis, and baseline-comparison scripts.
+- `scripts/figures/`: figure-generation scripts and plotting configuration.
+- `anylogic_model/`: AnyLogic model files and model-version notes.
+- `results/tables/`: manuscript-ready statistical tables.
+- `results/figures/`: manuscript figures and source data.
+- `results/summary/`: run manifests, quality audits, and queue-completion reports.
+- `results/designs/`: main experiment queues, supplemental figure queues, Morris designs, Latin-hypercube designs, and global-sensitivity parameter spaces.
+- `docs/`: terminology ledger, data dictionary, reproducibility guide, data/code availability statements, FAIR audit, and SHA256 file manifest.
+
+## Reproducibility Notes
+
+The primary simulation batch for the SCI v3/v6 manuscript uses `batchId=SCI_V3_FULL_RERUN_20260613`, plus the supplemental Chapter 5 nine-scenario queue `第五章九情景补充队列_20260613.csv`. Earlier runs are retained for audit only and should not be treated as the final evidence source unless explicitly marked in the manuscript.
+
+The current package is a reproducibility draft aligned with the thesis v17 terminology and terminology ledger. The canonical naming rules are recorded in `docs/terminology_ledger_20260614.md`. The cleaned run summary contains 2,349 run-level records, including 1,679 completed runs and 900 runs marked `usedForScenarioStats=true`. The scenario-statistics subset includes the full coupled SEIRG model (`modelMode=0`) and three baseline structures: traditional SEIR (`modelMode=1`), single-layer network SEIR (`modelMode=2`), and no-G/no-coupling model (`modelMode=3`). The M1-M3 baseline outputs are included for comparison and should be rechecked after any future AnyLogic model edit.
+
+The experiment queue is stored in `results/designs/全量重跑实验队列_SCI_v3.csv`. Rows with `requiresModelModeSupport=true` use the structural model-mode patch described in `anylogic_model/AnyLogic三类基线结构补丁说明_v3_20260613.md`. The current statistical-test table contains 180 rows with mean, SD, 95% CI, Welch t, p values, effect sizes, and multiple-comparison corrections. Local sensitivity and ablation runs are complete at 180/180 seeds. Morris and Latin-hypercube files are design queues and execution protocols; they should not be cited as completed global sensitivity results unless the corresponding AnyLogic runs and post-processing outputs are generated.
+
+For a full rerun, use `scripts/analysis/run_sci_v3_queue_batch.py` with the queue files in `results/designs/`, then rerun `scripts/analysis/analyze_anylogic_outputs.py` and `scripts/analysis/build_complete_statistical_tests_v3.py`. The GUI batch runner depends on a local AnyLogic installation and may need path edits for a different computer. The analysis and statistical-table scripts are package-relative and can be run from this repository root. Install the plotting dependencies in `requirements.txt` before regenerating figures.
+
+Typical verification commands:
+
+```bash
+python3 scripts/analysis/analyze_anylogic_outputs.py
+python3 scripts/analysis/build_complete_statistical_tests_v3.py
+python3 scripts/analysis/build_global_sensitivity_design_v3.py
+python3 scripts/analysis/build_chapter5_nine_figures.py
+```
+
+The file `docs/file_manifest_sha256.csv` records the package contents and checksums at the time this template was generated.
+
+## External Data
+
+The external plausibility-check folder includes aggregate CHECKED Chinese COVID-19 fake-news proxy series and OxCGRT China public-information anchors. These files are used for trend anchoring, timing proxies, and plausibility checks, not for causal policy evaluation. The reviewer package excludes CHECKED raw JSON/text records, CHECKED microblog-level normalized records, full OxCGRT compact national CSV files, and IFCN/Poynter raw database exports or page snapshots. Source datasets should be obtained from their original providers under their own terms.
+
+## Licensing
+
+Original analysis scripts and documentation in this package are released under the MIT License unless a file states otherwise. Generated simulation outputs may be reused for scholarly verification with attribution to the archived package. Third-party datasets, platform-derived metadata, and files derived from CHECKED, OxCGRT, Weibo, CoronaVirusFacts/IFCN, Poynter, or other external sources remain governed by their original terms. See `DATA_LICENSE_NOTICE.md` for the data-specific boundary.
+
+## Citation
+
+Please cite the repository URL, package version, commit hash, manuscript version, and SHA256 manifest in `docs/file_manifest_sha256.csv`. A DOI can be minted later from the same release if required by the journal.

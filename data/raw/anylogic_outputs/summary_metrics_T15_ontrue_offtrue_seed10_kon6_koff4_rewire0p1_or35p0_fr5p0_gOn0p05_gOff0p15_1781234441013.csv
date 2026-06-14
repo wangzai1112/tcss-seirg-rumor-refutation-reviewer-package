@@ -1,0 +1,2 @@
+runId,seedId,interventionStartTime,enableOnlineIntervention,enableOfflineIntervention,kOffline,kOnline,pRewire,initialOnlineSeeds,initialOfflineSeeds,I1Peak,I1PeakTime,I2Peak,I2PeakTime,G1Peak,G2Peak,cumulativeInfectedPersonHours,finalS,finalE,finalI1,finalI2,finalG1,finalG2,finalR
+T15_ontrue_offtrue_seed10_kon6_koff4_rewire0p1_or35p0_fr5p0_gOn0p05_gOff0p15_1781234441013,10,15.0,true,true,4,6,0.1,10,10,500.0,26.0,198.0,28.0,98.0,475.0,22797.0,12,0,0,0,0,1,987

@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+title: "Coupled online-offline rumor propagation and rumor-refutation intervention simulation package"
+message: "For review and reuse, cite the repository URL, package version, commit hash, manuscript version, and SHA256 manifest. A DOI can be minted later from the same release if required by the journal."
+type: dataset
+authors:
+  - family-names: "Sun"
+    given-names: "Guohao"
+date-released: "2026-06-14"
+version: "v0.6-thesis-sci-upgrade-20260614"
+license: "MIT"
+repository-code: "https://github.com/wangzai1112/tcss-seirg-rumor-refutation-reviewer-package"
+url: "https://github.com/wangzai1112/tcss-seirg-rumor-refutation-reviewer-package"
+keywords:
+  - "rumor propagation"
+  - "SEIRG"
+  - "coupled online-offline networks"
+  - "rumor-refutation intervention"
+  - "agent-based simulation"

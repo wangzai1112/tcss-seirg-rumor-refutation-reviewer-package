@@ -1,0 +1,10 @@
+{
+  "generated_at": "2026-06-12T19:27:30",
+  "download_oxcgrt": true,
+  "sources_checked": 3,
+  "successful_probe_count": 3,
+  "outputs": [
+    "public_real_data_source_access_log_20260612.csv",
+    "真实数据登记模板.csv"
+  ]
+}
