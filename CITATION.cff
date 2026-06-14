@@ -1,12 +1,12 @@
 cff-version: 1.2.0
 title: "Coupled online-offline rumor propagation and rumor-refutation intervention simulation package"
-message: "For review and reuse, cite the repository URL, package version, commit hash, manuscript version, and SHA256 manifest. The MIT License applies only to original scripts and documentation; third-party data and platform-derived materials remain governed by their source terms. A DOI can be minted later from the same release if required by the journal."
+message: "For review and reuse, cite the repository URL, package version, commit hash, manuscript version, and SHA256 manifest. The MIT License applies only to original scripts and documentation; third-party data and platform-derived materials remain governed by their source terms. A DOI can be minted later from the same sanitized release if required by the journal."
 type: dataset
 authors:
   - family-names: "Sun"
     given-names: "Guohao"
 date-released: "2026-06-14"
-version: "v0.7-tcss-reviewer-20260614"
+version: "v0.7.1-tcss-reviewer-20260614"
 repository-code: "https://github.com/wangzai1112/tcss-seirg-rumor-refutation-reviewer-package"
 url: "https://github.com/wangzai1112/tcss-seirg-rumor-refutation-reviewer-package"
 keywords:

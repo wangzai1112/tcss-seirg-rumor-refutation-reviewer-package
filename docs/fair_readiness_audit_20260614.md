@@ -15,7 +15,7 @@ Package root: `SCI一区升级规划/public_release_template`
 | Experiment design files | main queue, Chapter 5 supplemental queue, LHS, Morris, parameter space | Present |
 | Scripts | 11 core analysis scripts in `scripts/analysis/` | Present |
 | AnyLogic model | `anylogic_model/rumor_model_sci_v3_current.alp` | Present |
-| File manifest | `docs/file_manifest_sha256.csv`, 7,165 files | Present |
+| File manifest | `docs/file_manifest_sha256.csv`, 7,169 files | Present |
 
 ## FAIR Check
 

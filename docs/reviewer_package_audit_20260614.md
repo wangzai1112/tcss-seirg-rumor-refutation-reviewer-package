@@ -8,7 +8,7 @@ Repository URL: `https://github.com/wangzai1112/tcss-seirg-rumor-refutation-revi
 
 This package is a sanitized reviewer-access reproducibility package for the TCSS-oriented manuscript draft. It includes model files, simulation exports, processed simulation summaries, statistical tests, figure source data, manuscript-supporting figures and tables, experiment queues, analysis scripts, documentation, and a SHA256 file manifest.
 
-The package also includes a lightweight standard-library Python mean-field reference implementation at `scripts/analysis/mean_field_reference_seirg.py`. This file supports equation-level inspection of state flows and indicators but is not used to generate the manuscript's agent-based simulation results.
+The package also includes a compact transition specification at `docs/seirg_transition_specification.md` and a lightweight standard-library Python mean-field reference implementation at `scripts/analysis/mean_field_reference_seirg.py`. These files support equation-level inspection of state flows and indicators but are not used to generate the manuscript's agent-based simulation results.
 
 ## Third-Party Data Boundary
 
