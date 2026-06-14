@@ -4,6 +4,8 @@ This repository contains the reproducibility package for a manuscript on coupled
 
 Reviewer-access repository URL: `https://github.com/wangzai1112/tcss-seirg-rumor-refutation-reviewer-package`.
 
+Current release target: `v0.7-tcss-reviewer-20260614`.
+
 ## Repository Structure
 
 - `data/raw/anylogic_outputs/`: original AnyLogic CSV exports used to rebuild the run-level summary.
@@ -30,11 +32,14 @@ The experiment queue is stored in `results/designs/全量重跑实验队列_SCI_
 
 For a full rerun, use `scripts/analysis/run_sci_v3_queue_batch.py` with the queue files in `results/designs/`, then rerun `scripts/analysis/analyze_anylogic_outputs.py` and `scripts/analysis/build_complete_statistical_tests_v3.py`. The GUI batch runner depends on a local AnyLogic installation and may need path edits for a different computer. The analysis and statistical-table scripts are package-relative and can be run from this repository root. Install the plotting dependencies in `requirements.txt` before regenerating figures.
 
+Because AnyLogic is proprietary software, the package also includes `scripts/analysis/mean_field_reference_seirg.py`. This lightweight Python script uses only the standard library and provides an equation-level SEIRG sanity check for state-flow direction, the timing switch, and R0-style indicators. It is not used to generate the manuscript's AnyLogic agent-based simulation results.
+
 Typical verification commands:
 
 ```bash
 python3 scripts/analysis/analyze_anylogic_outputs.py
 python3 scripts/analysis/build_complete_statistical_tests_v3.py
+python3 scripts/analysis/mean_field_reference_seirg.py
 python3 scripts/analysis/build_global_sensitivity_design_v3.py
 python3 scripts/analysis/build_chapter5_nine_figures.py
 ```
@@ -51,4 +56,4 @@ Original analysis scripts and documentation in this package are released under t
 
 ## Citation
 
-Please cite the repository URL, package version, commit hash, manuscript version, and SHA256 manifest in `docs/file_manifest_sha256.csv`. A DOI can be minted later from the same release if required by the journal.
+Please cite the repository URL, package version, commit hash, manuscript version, and SHA256 manifest in `docs/file_manifest_sha256.csv`. The MIT License applies only to original scripts and documentation; third-party data and platform-derived materials remain governed by their source terms. A DOI can be minted later from the same release if required by the journal.
