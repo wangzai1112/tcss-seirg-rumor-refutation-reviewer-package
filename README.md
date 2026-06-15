@@ -4,7 +4,7 @@ This repository contains the reproducibility package for a manuscript on coupled
 
 Reviewer-access repository URL: `https://github.com/wangzai1112/tcss-seirg-rumor-refutation-reviewer-package`.
 
-Current release target: `v0.7.3-tcss-reviewer-20260615`.
+Current release target: `v0.7.5-tcss-reviewer-20260615`.
 
 ## Repository Structure
 
@@ -43,6 +43,7 @@ python3 scripts/analysis/build_paired_seed_comparisons_m0.py
 python3 scripts/analysis/mean_field_reference_seirg.py
 python3 scripts/analysis/build_global_sensitivity_design_v3.py
 python3 scripts/analysis/build_chapter5_nine_figures.py
+python3 scripts/figures/build_fig3_timing_trajectories.py
 ```
 
 The file `docs/file_manifest_sha256.csv` records the package contents and checksums at the time this template was generated.

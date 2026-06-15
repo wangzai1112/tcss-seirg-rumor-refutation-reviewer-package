@@ -78,7 +78,7 @@ dr/dt  =  gamma1*i1 + gamma2*i2 + mu1*g1*i1 + mu2*g2*i2 + rho*g1 + rho*g2 - delt
 
 This form makes the manuscript's modeling assumptions explicit: refutation is represented as state flow and spreader-exit interaction, not as a direct subtraction from the outcome metric.
 
-The AnyLogic ABM implementation contains additional refutation-trigger routes for implementation fidelity: exposed agents may enter `G1` or `G2` under online/offline refutation triggers, and active spreaders can also be shifted by cross-channel refutation contacts. These routes are documented in the statechart and are absorbed into the compact `alpha` and `mu` terms in the manuscript equations.
+The AnyLogic ABM implementation contains additional refutation-trigger routes for implementation fidelity: exposed agents may enter `G1` or `G2` under online/offline refutation triggers, and active spreaders can also be shifted by cross-channel refutation contacts. These routes are documented as implementation-level extensions. They are not included as explicit terms in the analytical mean-field equations, which retain the dominant `I_l -> G_l` transition route.
 
 ## Symbol-to-Implementation Mapping Notes
 
