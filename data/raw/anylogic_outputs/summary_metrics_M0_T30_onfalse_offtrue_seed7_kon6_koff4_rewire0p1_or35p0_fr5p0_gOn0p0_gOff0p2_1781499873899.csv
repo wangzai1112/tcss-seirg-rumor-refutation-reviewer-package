@@ -1,0 +1,2 @@
+runId,modelMode,seedId,interventionStartTime,enableOnlineIntervention,enableOfflineIntervention,kOffline,kOnline,pRewire,initialOnlineSeeds,initialOfflineSeeds,I1Peak,I1PeakTime,I2Peak,I2PeakTime,G1Peak,G2Peak,cumulativeInfectedPersonHours,finalS,finalE,finalI1,finalI2,finalG1,finalG2,finalR
+M0_T30_onfalse_offtrue_seed7_kon6_koff4_rewire0p1_or35p0_fr5p0_gOn0p0_gOff0p2_1781499873899,0,7,30.0,false,true,4,6,0.1,10,10,591.0,30.0,251.0,29.0,0.0,382.0,29602.0,11,0,0,0,0,7,982

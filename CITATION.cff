@@ -6,7 +6,7 @@ authors:
   - family-names: "Sun"
     given-names: "Guohao"
 date-released: "2026-06-15"
-version: "v0.7.9-tcss-reviewer-20260615"
+version: "v0.8.0-tcss-reviewer-20260615"
 repository-code: "https://github.com/wangzai1112/tcss-seirg-rumor-refutation-reviewer-package"
 url: "https://github.com/wangzai1112/tcss-seirg-rumor-refutation-reviewer-package"
 keywords:

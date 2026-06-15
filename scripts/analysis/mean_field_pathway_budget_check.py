@@ -175,8 +175,9 @@ def main():
         f.write("# Compact Mean-Field Equal-Strength and Budget-Matched Pathway Check\n\n")
         f.write(
             "This supplement is an equation-level directional check under the compact SEIRG "
-            "mean-field equations. It is not a 30-seed AnyLogic ABM rerun and should not be "
-            "used to replace the main pathway-strength scenario comparison in the manuscript.\n\n"
+            "mean-field equations. The completed AnyLogic ABM pathway-fairness check is "
+            "reported separately in `pathway_fairness_abm_check.csv/.md`; this mean-field "
+            "table is retained only as a compact equation-level reference.\n\n"
         )
         f.write(
             "The check keeps the same timing anchor (`Tg=30 h`) and compares equal-strength "

@@ -12,8 +12,8 @@ The current package includes a SHA256 file manifest at `docs/file_manifest_sha25
 
 | Evidence item | Repository location | Access route | Notes |
 |---|---|---|---|
-| Raw AnyLogic simulation exports | `data/raw/anylogic_outputs/` | public repository | 7,047 CSV files at the current package snapshot. |
-| Processed simulation run summary | `data/processed/simulation/summary_from_raw.csv` | public repository | 2,349 run-level records; 900 records marked `usedForScenarioStats=true`. |
+| Raw AnyLogic simulation exports | `data/raw/anylogic_outputs/` | public repository | 7,317 CSV files at the current package snapshot. |
+| Processed simulation run summary | `data/processed/simulation/summary_from_raw.csv` | public repository | 2,439 run-level records; 990 records marked `usedForScenarioStats=true`. |
 | Main experiment statistical tests | `results/tables/complete_stat_tests_current.csv` | public repository | 180 rows with mean, SD, 95% CI, Welch t, p values, effect sizes, and adjusted p values. |
 | Paired common-seed comparisons | `results/tables/paired_seed_comparisons_m0.csv` and `.md` | public repository | M0 main scenarios compared against the no-intervention baseline within matched seed IDs. |
 | Paired peak-difference summaries | `results/tables/paired_peak_comparisons_m0.csv` and `.md` | public repository | Peak-only extract from the paired common-seed comparisons for the M0 main scenarios. |
@@ -24,7 +24,8 @@ The current package includes a SHA256 file manifest at `docs/file_manifest_sha25
 | AnyLogic model and model patch notes | `anylogic_model/` | public repository, subject to software/tool restrictions | AnyLogic itself is proprietary software and is not redistributed. |
 | SEIRG transition specification | `docs/seirg_transition_specification.md` | public repository | Compact equation-level documentation for the model states, transition logic, and indicators. |
 | Mean-field equation-level reference check | `scripts/analysis/mean_field_reference_seirg.py` and `results/summary/mean_field_reference_*.csv` | public repository | Standard-library Python check for state-flow direction and indicators; not used to generate the manuscript's AnyLogic results. |
-| Equal-strength / budget-matched pathway check | `scripts/analysis/mean_field_pathway_budget_check.py` and `results/summary/mean_field_pathway_budget_check.*` | public repository | Deterministic compact mean-field allocation check; not a 30-seed AnyLogic ABM rerun and not used to replace the main pathway-strength comparison. |
+| Mean-field pathway allocation check | `scripts/analysis/mean_field_pathway_budget_check.py` and `results/summary/mean_field_pathway_budget_check.*` | public repository | Deterministic compact mean-field allocation check for equation-level inspection. |
+| Budget-matched pathway-fairness ABM check | `scripts/analysis/build_pathway_fairness_abm_check.py`, `results/summary/pathway_fairness_abm_check.*`, and `results/designs/pathway_fairness_abm_queue_20260615.csv` | public repository | Completed 30-seed AnyLogic M0 check at `Tg=30`; used to bound interpretation of the unequal-strength pathway table. |
 | Code scripts | `scripts/analysis/` | public repository | Original scripts and documentation use MIT; third-party data are not relicensed. |
 
 ## Repository and citation actions

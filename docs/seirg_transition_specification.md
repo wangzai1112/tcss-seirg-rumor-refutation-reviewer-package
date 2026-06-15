@@ -1,6 +1,6 @@
 # SEIRG Transition Specification
 
-Date: 2026-06-14
+Date: 2026-06-15
 
 This note records the compact transition-equation specification used to document the coupled online-offline SEIRG model in the TCSS manuscript. It is a derivation and reproducibility aid. It does not replace the AnyLogic agent-based simulation, and it does not provide causal evidence about real-world policy effectiveness.
 
@@ -93,20 +93,24 @@ For each seed, the implementation:
 5. assigns `initialOnlineSeeds=10` agents to `I1` and `initialOfflineSeeds=10` agents to `I2`;
 6. evaluates online and offline exposure/refutation rules through their corresponding contact channels and records the shared statechart counts at hourly resolution.
 
-The implementation-level state routes can be summarized as follows.
+The implementation-level state routes can be summarized as follows. The table distinguishes routes used in the compact mean-field derivation from auxiliary routes present in the AnyLogic statechart. All reported M0 outputs use the documented ABM statechart; the reproduction indicators use only the compact dominant-route representation.
 
-| Route | Main trigger | Equation role | Used in reproduction-indicator derivation? |
-|---|---|---|---|
-| `S -> E` | Online/offline exposure pressure from active spreaders through contact channels. | Represented by `lambda(t)*s`. | Yes: contributes to `R0`, `R0^G`, and `RE(t;Tg)`. |
-| `E -> I1` | Latent conversion allocated to online spreading. | Represented by `theta*sigma*e`. | Yes: allocates new spreaders across layers. |
-| `E -> I2` | Latent conversion allocated to offline spreading. | Represented by `(1-theta)*sigma*e`. | Yes: allocates new spreaders across layers. |
-| `I1 -> G1` | Online refutation-response trigger after `Tg`. | Dominant-route refutation term `h(t;Tg)*alpha1*i1`. | Yes for `R0^G` and `RE(t;Tg)` after the switch. |
-| `I2 -> G2` | Offline refutation-response trigger after `Tg`. | Dominant-route refutation term `h(t;Tg)*alpha2*i2`. | Yes for `R0^G` and `RE(t;Tg)` after the switch. |
-| `I1 -> R` | Baseline exit plus interaction with accumulated `G1`. | Represented by `gamma1*i1 + mu1*g1*i1`. | Yes: appears in effective exit terms. |
-| `I2 -> R` | Baseline exit plus interaction with accumulated `G2`. | Represented by `gamma2*i2 + mu2*g2*i2`. | Yes: appears in effective exit terms. |
-| `G1 -> R`, `G2 -> R` | Completion of refutation-response state. | Represented by `rho*g1` and `rho*g2`. | Included in state equations; not a new-spreader generation term. |
-| `R -> S` | Return or forgetting in the rumor-propagation process. | Represented by `delta*r`. | Included in state equations; outside the local new-spreader subsystem. |
-| Auxiliary `E -> G_l` or cross-channel `G_l` triggers | Additional AnyLogic implementation triggers for refutation contacts. These routes are part of the reported ABM statechart when their trigger conditions are met. | Documented as implementation-level extensions; not retained as explicit mean-field terms. | No: not used in deriving `R0`, `R0^G`, or `RE(t;Tg)`. |
+| Route | ABM trigger / condition | Enabled scenarios | Parameter fields | Mean-field role | Threshold-indicator role | Used in reported M0 outputs? |
+|---|---|---|---|---|---|---|
+| `S -> E` | Susceptible agent receives online or offline exposure pressure from active spreaders through the corresponding contact channel. | All M0 and baseline scenarios. | `onlineRate`, `offlineRate`, `kOnline`, `kOffline`, `pRewire`. | Represented by `lambda(t)*s`. | Yes; contributes to `R0`, `R0(L)`, and `RE(t;Tg)`. | Yes. |
+| `E -> I1` | Latent exposed agent converts to online spreading according to the online allocation route. | All M0 scenarios with active propagation. | `latentTime`; analytical counterpart `theta`. | Represented by `theta*sigma*e`. | Yes; allocates new spreaders across layers. | Yes. |
+| `E -> I2` | Latent exposed agent converts to offline spreading according to the offline allocation route. | All M0 scenarios with active propagation. | `latentTime`; analytical counterpart `1-theta`. | Represented by `(1-theta)*sigma*e`. | Yes; allocates new spreaders across layers. | Yes. |
+| `I1 -> G1` | Online spreader enters the online refutation-response state after the refutation switch is active. | Online-only and dual-track M0 intervention scenarios. | `interventionStartTime`, `enableOnlineIntervention`, `onlineGovEffect`, `govForgetTime`. | Dominant-route refutation term `h(t;Tg)*alpha1*i1`. | Yes after the switch; enters `R0^G` and `RE(t;Tg)` through the effective exit term. | Yes. |
+| `I2 -> G2` | Offline spreader enters the offline refutation-response state after the refutation switch is active. | Offline-only and dual-track M0 intervention scenarios. | `interventionStartTime`, `enableOfflineIntervention`, `offlineGovEffect`, `govForgetTime`. | Dominant-route refutation term `h(t;Tg)*alpha2*i2`. | Yes after the switch; enters `R0^G` and `RE(t;Tg)` through the effective exit term. | Yes. |
+| Auxiliary `E -> G1` | Exposed agent enters the online refutation-response state under online refutation contact or trigger logic after `Tg`. | Online-enabled M0 intervention scenarios when trigger conditions are met. | `interventionStartTime`, `enableOnlineIntervention`, `onlineGovEffect`, contact-channel state. | Implementation-level route; not retained as an explicit mean-field term. | No; omitted from `R0`, `R0^G`, and `RE(t;Tg)` derivations. | Yes, when triggered by the ABM statechart. |
+| Auxiliary `E -> G2` | Exposed agent enters the offline refutation-response state under offline refutation contact or trigger logic after `Tg`. | Offline-enabled M0 intervention scenarios when trigger conditions are met. | `interventionStartTime`, `enableOfflineIntervention`, `offlineGovEffect`, contact-channel state. | Implementation-level route; not retained as an explicit mean-field term. | No; omitted from `R0`, `R0^G`, and `RE(t;Tg)` derivations. | Yes, when triggered by the ABM statechart. |
+| Auxiliary cross-channel `I_l -> G_m` | Active spreader is shifted by a refutation-response contact in the other channel. | Dual-track M0 intervention scenarios when cross-channel contact conditions occur. | Online/offline intervention switches, `onlineGovEffect`, `offlineGovEffect`, contact-channel state. | Implementation-level cross-channel rule; summarized qualitatively rather than as a separate ODE term. | No; not used in deriving the local reproduction indicators. | Yes, when triggered by the ABM statechart. |
+| `I1 -> R` | Baseline online spreader exit and exit interaction with accumulated `G1`. | All M0 scenarios; `G1` interaction only when online refutation-response states are present. | `forgetTime`; analytical counterparts `gamma1`, `mu1`. | Represented by `gamma1*i1 + mu1*g1*i1`. | Yes; contributes to the effective online exit term. | Yes. |
+| `I2 -> R` | Baseline offline spreader exit and exit interaction with accumulated `G2`. | All M0 scenarios; `G2` interaction only when offline refutation-response states are present. | `forgetTime`; analytical counterparts `gamma2`, `mu2`. | Represented by `gamma2*i2 + mu2*g2*i2`. | Yes; contributes to the effective offline exit term. | Yes. |
+| `G1 -> R` | Completion of the online refutation-response state. | Online-enabled M0 intervention scenarios. | `govForgetTime`; analytical counterpart `rho`. | Represented by `rho*g1`. | Included in state equations; not a new-spreader generation term. | Yes. |
+| `G2 -> R` | Completion of the offline refutation-response state. | Offline-enabled M0 intervention scenarios. | `govForgetTime`; analytical counterpart `rho`. | Represented by `rho*g2`. | Included in state equations; not a new-spreader generation term. | Yes. |
+| `R -> S` | Return or forgetting in the rumor-propagation process. | All M0 scenarios. | `forgetTime`; analytical counterpart `delta`. | Represented by `delta*r`. | Included in state equations; outside the local new-spreader subsystem. | Yes. |
+| Simplified baseline suppression | Direct post-`Tg` suppression used when explicit coupling or `G` states are removed in M1--M3. | Structural baselines M1--M3 only. | `onlineGovEffect`, `offlineGovEffect`, `baselineMultiplier`. | Not part of the M0 SEIRG ODEs. | No; not used in `R0`, `R0(L)`, or `RE(t;Tg)`. | No for M0; yes for the corresponding structural baselines. |
 
 ## Symbol-to-Implementation Mapping Notes
 

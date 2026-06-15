@@ -1,6 +1,6 @@
 # Compact Mean-Field Equal-Strength and Budget-Matched Pathway Check
 
-This supplement is an equation-level directional check under the compact SEIRG mean-field equations. It is not a 30-seed AnyLogic ABM rerun and should not be used to replace the main pathway-strength scenario comparison in the manuscript.
+This supplement is an equation-level directional check under the compact SEIRG mean-field equations. The completed AnyLogic ABM pathway-fairness check is reported separately in `pathway_fairness_abm_check.csv/.md`; this mean-field table is retained only as a compact equation-level reference.
 
 The check keeps the same timing anchor (`Tg=30 h`) and compares equal-strength dual allocations plus budget-matched allocations with `alpha1 + alpha2 = 0.20`.
 
