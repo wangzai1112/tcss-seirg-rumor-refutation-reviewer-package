@@ -21,6 +21,8 @@ ROOT = Path(__file__).resolve().parents[2]
 SUMMARY = ROOT / "data" / "processed" / "simulation" / "summary_from_raw.csv"
 OUT_CSV = ROOT / "results" / "tables" / "paired_seed_comparisons_m0.csv"
 OUT_MD = ROOT / "results" / "tables" / "paired_seed_comparisons_m0.md"
+OUT_PEAK_CSV = ROOT / "results" / "tables" / "paired_peak_comparisons_m0.csv"
+OUT_PEAK_MD = ROOT / "results" / "tables" / "paired_peak_comparisons_m0.md"
 
 METRICS = ("cumulativeInfectedPersonHours_right", "totalInfectedPeak")
 
@@ -203,6 +205,41 @@ def write_markdown(rows: list[dict[str, object]]) -> None:
     OUT_MD.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def write_peak_outputs(rows: list[dict[str, object]]) -> None:
+    peak_rows = [row for row in rows if row["metric"] == "totalInfectedPeak"]
+    with OUT_PEAK_CSV.open("w", newline="", encoding="utf-8") as f:
+        fieldnames = ["scenario", "n", "meanPeakDiff", "sdPeakDiff", "ci95Low", "ci95High", "pairedT"]
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        for row in peak_rows:
+            writer.writerow(
+                {
+                    "scenario": row["scenario"],
+                    "n": row["n"],
+                    "meanPeakDiff": row["meanDiff"],
+                    "sdPeakDiff": row["sdDiff"],
+                    "ci95Low": row["ci95Low"],
+                    "ci95High": row["ci95High"],
+                    "pairedT": row["pairedT"],
+                }
+            )
+
+    lines = [
+        "# Paired Peak-Difference Comparisons for M0",
+        "",
+        "Differences are scenario peak minus no-intervention peak within the same seed ID.",
+        "Negative values indicate lower total active-spreader peak under the scenario.",
+        "",
+        "| Scenario | n | Mean peak diff. | SD diff. | 95% CI | Paired t |",
+        "|---|---:|---:|---:|---|---:|",
+    ]
+    for row in peak_rows:
+        lines.append(
+            "| {scenario} | {n} | {meanDiff:.2f} | {sdDiff:.2f} | [{ci95Low:.2f}, {ci95High:.2f}] | {pairedT:.2f} |".format(**row)
+        )
+    OUT_PEAK_MD.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def main() -> None:
     with SUMMARY.open(newline="", encoding="utf-8-sig") as f:
         rows = [parse_row(row) for row in csv.DictReader(f)]
@@ -226,8 +263,11 @@ def main() -> None:
         writer.writeheader()
         writer.writerows(output)
     write_markdown(output)
+    write_peak_outputs(output)
     print(OUT_CSV)
     print(OUT_MD)
+    print(OUT_PEAK_CSV)
+    print(OUT_PEAK_MD)
 
 
 if __name__ == "__main__":
