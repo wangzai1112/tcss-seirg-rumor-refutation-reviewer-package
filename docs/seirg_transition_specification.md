@@ -95,18 +95,18 @@ For each seed, the implementation:
 
 The implementation-level state routes can be summarized as follows.
 
-| Route | Main trigger | Equation role |
-|---|---|---|
-| `S -> E` | Online/offline exposure pressure from active spreaders through contact channels. | Represented by `lambda(t)*s`. |
-| `E -> I1` | Latent conversion allocated to online spreading. | Represented by `theta*sigma*e`. |
-| `E -> I2` | Latent conversion allocated to offline spreading. | Represented by `(1-theta)*sigma*e`. |
-| `I1 -> G1` | Online refutation-response trigger after `Tg`. | Dominant-route refutation term `h(t;Tg)*alpha1*i1`. |
-| `I2 -> G2` | Offline refutation-response trigger after `Tg`. | Dominant-route refutation term `h(t;Tg)*alpha2*i2`. |
-| `I1 -> R` | Baseline exit plus interaction with accumulated `G1`. | Represented by `gamma1*i1 + mu1*g1*i1`. |
-| `I2 -> R` | Baseline exit plus interaction with accumulated `G2`. | Represented by `gamma2*i2 + mu2*g2*i2`. |
-| `G1 -> R`, `G2 -> R` | Completion of refutation-response state. | Represented by `rho*g1` and `rho*g2`. |
-| `R -> S` | Return or forgetting in the rumor-propagation process. | Represented by `delta*r`. |
-| Auxiliary `E -> G_l` or cross-channel `G_l` triggers | Additional AnyLogic implementation triggers for refutation contacts. | Documented as implementation-level extensions, not used in deriving `R0`, `R0^G`, or `RE(t;Tg)`. |
+| Route | Main trigger | Equation role | Used in reproduction-indicator derivation? |
+|---|---|---|---|
+| `S -> E` | Online/offline exposure pressure from active spreaders through contact channels. | Represented by `lambda(t)*s`. | Yes: contributes to `R0`, `R0^G`, and `RE(t;Tg)`. |
+| `E -> I1` | Latent conversion allocated to online spreading. | Represented by `theta*sigma*e`. | Yes: allocates new spreaders across layers. |
+| `E -> I2` | Latent conversion allocated to offline spreading. | Represented by `(1-theta)*sigma*e`. | Yes: allocates new spreaders across layers. |
+| `I1 -> G1` | Online refutation-response trigger after `Tg`. | Dominant-route refutation term `h(t;Tg)*alpha1*i1`. | Yes for `R0^G` and `RE(t;Tg)` after the switch. |
+| `I2 -> G2` | Offline refutation-response trigger after `Tg`. | Dominant-route refutation term `h(t;Tg)*alpha2*i2`. | Yes for `R0^G` and `RE(t;Tg)` after the switch. |
+| `I1 -> R` | Baseline exit plus interaction with accumulated `G1`. | Represented by `gamma1*i1 + mu1*g1*i1`. | Yes: appears in effective exit terms. |
+| `I2 -> R` | Baseline exit plus interaction with accumulated `G2`. | Represented by `gamma2*i2 + mu2*g2*i2`. | Yes: appears in effective exit terms. |
+| `G1 -> R`, `G2 -> R` | Completion of refutation-response state. | Represented by `rho*g1` and `rho*g2`. | Included in state equations; not a new-spreader generation term. |
+| `R -> S` | Return or forgetting in the rumor-propagation process. | Represented by `delta*r`. | Included in state equations; outside the local new-spreader subsystem. |
+| Auxiliary `E -> G_l` or cross-channel `G_l` triggers | Additional AnyLogic implementation triggers for refutation contacts. | Documented as implementation-level extensions. | No: not used in deriving `R0`, `R0^G`, or `RE(t;Tg)`. |
 
 ## Symbol-to-Implementation Mapping Notes
 

@@ -1,0 +1,8 @@
+queueId,modelMode,interventionStartTime,enableOnlineIntervention,enableOfflineIntervention,onlineGovEffect,offlineGovEffect,budgetSum,seeds,status,purpose
+budget_online_020_000,0,30,true,false,0.20,0.00,0.20,1-30,design_only_not_executed,online-only under full fixed budget
+budget_dual_015_005,0,30,true,true,0.15,0.05,0.20,1-30,design_only_not_executed,dual-track online-skewed allocation
+budget_dual_010_010,0,30,true,true,0.10,0.10,0.20,1-30,design_only_not_executed,dual-track equal allocation
+budget_dual_005_015,0,30,true,true,0.05,0.15,0.20,1-30,design_only_not_executed,dual-track reported allocation anchor
+budget_offline_000_020,0,30,false,true,0.00,0.20,0.20,1-30,design_only_not_executed,offline-only under full fixed budget
+equal_weak_dual_005_005,0,30,true,true,0.05,0.05,0.10,1-30,design_only_not_executed,equal-strength weak dual-track check
+equal_strong_dual_015_015,0,30,true,true,0.15,0.15,0.30,1-30,design_only_not_executed,equal-strength strong dual-track check
