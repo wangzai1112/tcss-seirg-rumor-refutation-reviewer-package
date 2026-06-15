@@ -24,6 +24,7 @@ The current package includes a SHA256 file manifest at `docs/file_manifest_sha25
 | AnyLogic model and model patch notes | `anylogic_model/` | public repository, subject to software/tool restrictions | AnyLogic itself is proprietary software and is not redistributed. |
 | SEIRG transition specification | `docs/seirg_transition_specification.md` | public repository | Compact equation-level documentation for the model states, transition logic, and indicators. |
 | Mean-field equation-level reference check | `scripts/analysis/mean_field_reference_seirg.py` and `results/summary/mean_field_reference_*.csv` | public repository | Standard-library Python check for state-flow direction and indicators; not used to generate the manuscript's AnyLogic results. |
+| Equal-strength / budget-matched pathway check | `scripts/analysis/mean_field_pathway_budget_check.py` and `results/summary/mean_field_pathway_budget_check.*` | public repository | Deterministic compact mean-field allocation check; not a 30-seed AnyLogic ABM rerun and not used to replace the main pathway-strength comparison. |
 | Code scripts | `scripts/analysis/` | public repository | Original scripts and documentation use MIT; third-party data are not relicensed. |
 
 ## Repository and citation actions

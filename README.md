@@ -4,7 +4,7 @@ This repository contains the reproducibility package for a manuscript on coupled
 
 Reviewer-access repository URL: `https://github.com/wangzai1112/tcss-seirg-rumor-refutation-reviewer-package`.
 
-Current release target: `v0.7.8-tcss-reviewer-20260615`.
+Current release target: `v0.7.9-tcss-reviewer-20260615`.
 
 ## Repository Structure
 
@@ -32,7 +32,7 @@ The experiment queue is stored in `results/designs/全量重跑实验队列_SCI_
 
 For a full rerun, use `scripts/analysis/run_sci_v3_queue_batch.py` with the queue files in `results/designs/`, then rerun `scripts/analysis/analyze_anylogic_outputs.py` and `scripts/analysis/build_complete_statistical_tests_v3.py`. The GUI batch runner depends on a local AnyLogic installation and may need path edits for a different computer. The analysis and statistical-table scripts are package-relative and can be run from this repository root. Install the plotting dependencies in `requirements.txt` before regenerating figures.
 
-Because AnyLogic is proprietary software, the package also includes `docs/seirg_transition_specification.md` and `scripts/analysis/mean_field_reference_seirg.py`. These files provide a compact transition-equation specification and a standard-library SEIRG sanity check for state-flow direction, the timing switch, and R0-style indicators. They are not used to generate the manuscript's AnyLogic agent-based simulation results.
+Because AnyLogic is proprietary software, the package also includes `docs/seirg_transition_specification.md`, `scripts/analysis/mean_field_reference_seirg.py`, and `scripts/analysis/mean_field_pathway_budget_check.py`. These files provide compact transition-equation documentation, a standard-library SEIRG sanity check for state-flow direction, and an equation-level equal-strength or budget-matched pathway allocation check. They are not used to generate the manuscript's AnyLogic agent-based simulation results.
 
 Typical verification commands:
 
@@ -41,6 +41,7 @@ python3 scripts/analysis/analyze_anylogic_outputs.py
 python3 scripts/analysis/build_complete_statistical_tests_v3.py
 python3 scripts/analysis/build_paired_seed_comparisons_m0.py
 python3 scripts/analysis/mean_field_reference_seirg.py
+python3 scripts/analysis/mean_field_pathway_budget_check.py
 python3 scripts/analysis/build_global_sensitivity_design_v3.py
 python3 scripts/analysis/build_chapter5_nine_figures.py
 python3 scripts/figures/build_fig3_timing_trajectories.py
