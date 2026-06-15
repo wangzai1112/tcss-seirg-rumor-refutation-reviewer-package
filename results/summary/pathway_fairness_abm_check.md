@@ -1,4 +1,4 @@
-# Budget-Matched ABM Pathway Fairness Check
+# Supplementary Table S1. Budget-Matched ABM Pathway Fairness Check
 
 This supplementary table reports completed 30-seed AnyLogic M0 runs at `Tg=30` under the same population, network, propagation, state-duration, and common-seed settings as the main pathway scenarios. The check separates the reported pathway-strength comparison from a same-budget allocation check. It is a model-internal sensitivity check, not a real-world pathway ranking.
 

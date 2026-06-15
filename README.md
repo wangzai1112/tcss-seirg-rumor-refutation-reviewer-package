@@ -4,7 +4,7 @@ This repository contains the reproducibility package for a manuscript on coupled
 
 Reviewer-access repository URL: `https://github.com/wangzai1112/tcss-seirg-rumor-refutation-reviewer-package`.
 
-Current release target: `v0.8.0-tcss-reviewer-20260615`.
+Current release target: `v0.8.1-tcss-reviewer-20260615`.
 
 ## Repository Structure
 
