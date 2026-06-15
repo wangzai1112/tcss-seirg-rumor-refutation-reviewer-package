@@ -29,6 +29,7 @@ The current package includes a SHA256 file manifest at `docs/file_manifest_sha25
 ## Repository and citation actions
 
 - Use `https://github.com/wangzai1112/tcss-seirg-rumor-refutation-reviewer-package` as the reviewer-access repository URL.
+- For double-blind review, submit the same sanitized package through the journal system or an anonymized archive, and disclose the public GitHub release only after review policy permits it.
 - If a DOI-backed archive is required later, create a Zenodo, OSF, Figshare, institutional repository, or equivalent archive from the same sanitized release.
 - Keep the MIT License for original scripts and documentation unless the institution requires another licence.
 - Cite CHECKED and OxCGRT as reused public data sources in the manuscript reference list or data-availability section.
