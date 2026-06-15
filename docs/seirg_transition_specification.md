@@ -60,23 +60,35 @@ h(t; Tg) = 0, if t < Tg
 h(t; Tg) = 1, if t >= Tg
 ```
 
-Let `alpha1` and `alpha2` denote direct online/offline refutation transition rates after the switch is active. Let `mu1` and `mu2` denote the interaction between accumulated refutation states and active spreaders. Let `rho` denote return or forgetting from `R`, `G1`, and `G2` to `S`.
+Let `alpha1` and `alpha2` denote direct online/offline refutation transition rates after the switch is active. Let `mu1` and `mu2` denote the interaction between accumulated refutation states and active spreaders. Let `delta` denote return from `R` to `S`, and let `rho` denote exit from `G1` and `G2` to `R`.
 
 A compact mean-field representation used for equation-level checking is:
 
 ```text
 lambda(t) = beta1*k1*i1 + beta2*k2*i2
 
-ds/dt  = -lambda(t)*s + rho*r + rho*g1 + rho*g2
+ds/dt  = -lambda(t)*s + delta*r
 de/dt  =  lambda(t)*s - sigma*e
 di1/dt =  theta*sigma*e - gamma1*i1 - h(t;Tg)*alpha1*i1 - mu1*g1*i1
 di2/dt =  (1-theta)*sigma*e - gamma2*i2 - h(t;Tg)*alpha2*i2 - mu2*g2*i2
 dg1/dt =  h(t;Tg)*alpha1*i1 - rho*g1
 dg2/dt =  h(t;Tg)*alpha2*i2 - rho*g2
-dr/dt  =  gamma1*i1 + gamma2*i2 + mu1*g1*i1 + mu2*g2*i2 - rho*r
+dr/dt  =  gamma1*i1 + gamma2*i2 + mu1*g1*i1 + mu2*g2*i2 + rho*g1 + rho*g2 - delta*r
 ```
 
 This form makes the manuscript's modeling assumptions explicit: refutation is represented as state flow and spreader-exit interaction, not as a direct subtraction from the outcome metric.
+
+The AnyLogic ABM implementation contains additional refutation-trigger routes for implementation fidelity: exposed agents may enter `G1` or `G2` under online/offline refutation triggers, and active spreaders can also be shifted by cross-channel refutation contacts. These routes are documented in the statechart and are absorbed into the compact `alpha` and `mu` terms in the manuscript equations.
+
+## Symbol-to-Implementation Mapping Notes
+
+The AnyLogic simulation exports the implementation fields used for the primary ABM runs, including `onlineRate`, `offlineRate`, `onlineGovEffect`, `offlineGovEffect`, `latentTime`, `forgetTime`, and `govForgetTime`. These fields are retained for reproducibility. They are not empirical estimates calibrated from real-world events.
+
+- `onlineRate` and `offlineRate` are ABM propagation-intensity fields. They correspond directionally to `beta1` and `beta2`, but should not be read as per-contact transmission estimates.
+- `theta`, `gamma1`, `gamma2`, `mu1`, and `mu2` are analytical counterparts used in the compact mean-field equations and in the open mean-field reference script. The current reference values are `theta=0.72`, `gamma1=0.11`, `gamma2=0.08`, `mu1=0.020`, and `mu2=0.025`. The main ABM implements the corresponding processes through statechart and network-state rules rather than through separately exported calibrated scalar columns.
+- `rho` is the compact refutation-state exit counterpart for `G1/G2 -> R`; `delta` is the return counterpart for `R -> S`.
+- The reported M0 pathway scenarios use unequal refutation-strength fields: `onlineGovEffect=0.05` and `offlineGovEffect=0.15`. They should be interpreted as pathway-strength scenarios, not as equal-strength pathway rankings.
+- The structural baselines M1--M3 do not generate `G1` or `G2`. After `Tg`, their simplified direct suppression uses `baselineMultiplier = max(0.05, 1 - (onlineGovEffect + offlineGovEffect))`, which equals `0.80` under the main setting. This multiplier is a structural-control device, not a causal policy-effect estimate.
 
 ## Effective Indicator After Refutation
 

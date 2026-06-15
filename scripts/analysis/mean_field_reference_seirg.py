@@ -59,13 +59,13 @@ def step(state: tuple[float, ...], t: float, p: Params) -> tuple[float, ...]:
     g_exit1 = p.mu1 * g1 * i1
     g_exit2 = p.mu2 * g2 * i2
 
-    ds = -force + p.delta * r + p.rho * (g1 + g2)
+    ds = -force + p.delta * r
     de = force - p.sigma * e
     di1 = p.theta * p.sigma * e - p.gamma1 * i1 - ref1 - g_exit1
     di2 = (1.0 - p.theta) * p.sigma * e - p.gamma2 * i2 - ref2 - g_exit2
     dg1 = ref1 - p.rho * g1
     dg2 = ref2 - p.rho * g2
-    dr = p.gamma1 * i1 + p.gamma2 * i2 + g_exit1 + g_exit2 - p.delta * r
+    dr = p.gamma1 * i1 + p.gamma2 * i2 + g_exit1 + g_exit2 + p.rho * (g1 + g2) - p.delta * r
 
     raw = (
         s + p.dt * ds,
